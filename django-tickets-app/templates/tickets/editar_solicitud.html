@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+
+{% block title %}Editar Solicitud #{{ solicitud.id }} - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0"><i class="fas fa-edit"></i> Editar Solicitud #{{ solicitud.id }}</h4>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data" id="editarSolicitudForm">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.tipo_solicitud.id_for_label }}" class="form-label">Tipo de Solicitud *</label>
+                        {{ form.tipo_solicitud }}
+                        {% if form.tipo_solicitud.errors %}
+                            <div class="text-danger">{{ form.tipo_solicitud.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.descripcion.id_for_label }}" class="form-label">Descripción</label>
+                        {{ form.descripcion }}
+                        {% if form.descripcion.errors %}
+                            <div class="text-danger">{{ form.descripcion.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Campos para archivos -->
+                    <div id="archivo-section" class="mb-3">
+                        <label for="{{ form.tipo_archivo.id_for_label }}" class="form-label">Tipo de Archivo</label>
+                        {{ form.tipo_archivo }}
+                        {% if form.tipo_archivo.errors %}
+                            <div class="text-danger">{{ form.tipo_archivo.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div id="archivo-upload" class="mb-3">
+                        <label for="{{ form.archivo_adjunto.id_for_label }}" class="form-label">Archivo Adjunto</label>
+                        {{ form.archivo_adjunto }}
+                        {% if form.archivo_adjunto.errors %}
+                            <div class="text-danger">{{ form.archivo_adjunto.errors }}</div>
+                        {% endif %}
+                        {% if form.archivo_adjunto.help_text %}
+                            <div class="form-text">{{ form.archivo_adjunto.help_text }}</div>
+                        {% endif %}
+                        {% if solicitud.archivo_adjunto %}
+                            <div class="form-text">
+                                <small>Archivo actual: <a href="{{ solicitud.archivo_adjunto.url }}" target="_blank">{{ solicitud.archivo_adjunto.name }}</a></small>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Campos para Pull Request / Despliegue -->
+                    <div id="git-section" style="display: none;">
+                        <div class="mb-3">
+                            <label for="{{ form.url_commit.id_for_label }}" class="form-label">URL del Commit/PR</label>
+                            {{ form.url_commit }}
+                            {% if form.url_commit.errors %}
+                                <div class="text-danger">{{ form.url_commit.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.nombre_branch.id_for_label }}" class="form-label">Nombre del Branch</label>
+                            {{ form.nombre_branch }}
+                            {% if form.nombre_branch.errors %}
+                                <div class="text-danger">{{ form.nombre_branch.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.entorno.id_for_label }}" class="form-label">Entorno</label>
+                            {{ form.entorno }}
+                            {% if form.entorno.errors %}
+                                <div class="text-danger">{{ form.entorno.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'detalle_solicitud' solicitud.pk %}" class="btn btn-secondary me-md-2">
+                            <i class="fas fa-times"></i> Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Guardar Cambios
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const tipoSolicitudSelect = document.getElementById('id_tipo_solicitud');
+    const archivoSection = document.getElementById('archivo-section');
+    const archivoUpload = document.getElementById('archivo-upload');
+    const gitSection = document.getElementById('git-section');
+    
+    function toggleSections() {
+        const tipoSeleccionado = tipoSolicitudSelect.value;
+        
+        if (tipoSeleccionado === 'pull_request' || tipoSeleccionado === 'despliegue') {
+            archivoSection.style.display = 'none';
+            archivoUpload.style.display = 'none';
+            gitSection.style.display = 'block';
+        } else {
+            archivoSection.style.display = 'block';
+            archivoUpload.style.display = 'block';
+            gitSection.style.display = 'none';
+        }
+    }
+    
+    tipoSolicitudSelect.addEventListener('change', toggleSections);
+    toggleSections(); // Ejecutar al cargar la página
+});
+</script>
+{% endblock %}

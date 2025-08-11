@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-tachometer-alt"></i> Dashboard</h2>
+    <a href="{% url 'crear_solicitud' %}" class="btn btn-primary">
+        <i class="fas fa-plus"></i> Nueva Solicitud
+    </a>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-filter"></i> Filtros</h5>
+    </div>
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Tipo de Solicitud</label>
+                <select name="tipo_solicitud" class="form-select">
+                    <option value="">Todos</option>
+                    {% for codigo, nombre in tipos_solicitud %}
+                        <option value="{{ codigo }}" {% if filtros.tipo_solicitud == codigo %}selected{% endif %}>
+                            {{ nombre }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Estado</label>
+                <select name="estado" class="form-select">
+                    <option value="">Todos</option>
+                    {% for codigo, nombre in estados %}
+                        <option value="{{ codigo }}" {% if filtros.estado == codigo %}selected{% endif %}>
+                            {{ nombre }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Desde</label>
+                <input type="date" name="fecha_desde" class="form-control" value="{{ filtros.fecha_desde }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Hasta</label>
+                <input type="date" name="fecha_hasta" class="form-control" value="{{ filtros.fecha_hasta }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-outline-primary d-block w-100">
+                    <i class="fas fa-search"></i> Filtrar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Lista de Solicitudes -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-list"></i> Solicitudes</h5>
+    </div>
+    <div class="card-body">
+        {% if page_obj %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Tipo</th>
+                            <th>Estado</th>
+                            <th>Usuario</th>
+                            <th>Base de Datos</th>
+                            <th>Fecha</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for solicitud in page_obj %}
+                        <tr>
+                            <td>{{ solicitud.id }}</td>
+                            <td>{{ solicitud.get_tipo_solicitud_display }}</td>
+                            <td>
+                                <span class="badge bg-{% if solicitud.estado == 'registrada' %}secondary{% elif solicitud.estado == 'revision' %}warning{% elif solicitud.estado == 'aprobada' %}success{% elif solicitud.estado == 'rechazada' %}danger{% elif solicitud.estado == 'cancelada' %}dark{% elif solicitud.estado == 'pendiente_aprobacion_lider' %}info{% else %}primary{% endif %}">
+                                    {{ solicitud.get_estado_display }}
+                                </span>
+                            </td>
+                            <td>{{ solicitud.usuario.username }}</td>
+                            <td>{{ solicitud.base_datos_aplicacion|default:"-" }}</td>
+                            <td>{{ solicitud.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                <a href="{% url 'detalle_solicitud' solicitud.pk %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye"></i> Ver
+                                </a>
+                                {% if solicitud.usuario == user and solicitud.estado == 'registrada' or solicitud.estado == 'revision' %}
+                                    <a href="{% url 'editar_solicitud' solicitud.pk %}" class="btn btn-sm btn-outline-warning">
+                                        <i class="fas fa-edit"></i> Editar
+                                    </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginación -->
+            {% if page_obj.has_other_pages %}
+            <nav aria-label="Paginación">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+                        </li>
+                    {% endif %}
+                    
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ num }}</span>
+                            </li>
+                        {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">Siguiente</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        {% else %}
+            <div class="text-center py-4">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No hay solicitudes que mostrar.</p>
+                <a href="{% url 'crear_solicitud' %}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Crear Primera Solicitud
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Credenciales de Acceso</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #2c3e50;">Credenciales de Acceso - Usuario Creado</h2>
+        
+        <p>Estimado/a usuario/a,</p>
+        
+        <p>Su solicitud de creación de usuario ha sido <strong>aprobada</strong> y el usuario ha sido creado exitosamente.</p>
+        
+        <div style="background-color: #d4edda; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #28a745;">
+            <h3 style="margin-top: 0; color: #155724;">Credenciales de Acceso:</h3>
+            <ul style="list-style: none; padding: 0;">
+                <li><strong>Usuario:</strong> <code style="background-color: #f8f9fa; padding: 2px 4px; border-radius: 3px;">{{ usuario }}</code></li>
+                <li><strong>Contraseña:</strong> <code style="background-color: #f8f9fa; padding: 2px 4px; border-radius: 3px;">{{ password }}</code></li>
+                <li><strong>Base de Datos/Aplicación:</strong> {{ solicitud.base_datos_aplicacion }}</li>
+            </ul>
+        </div>
+        
+        <div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107;">
+            <h4 style="margin-top: 0; color: #856404;">Importante:</h4>
+            <ul>
+                <li>Cambie la contraseña en el primer acceso</li>
+                <li>No comparta estas credenciales con terceros</li>
+                <li>Guarde esta información en un lugar seguro</li>
+            </ul>
+        </div>
+        
+        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <h4 style="margin-top: 0;">Detalles de la Solicitud:</h4>
+            <ul style="list-style: none; padding: 0;">
+                <li><strong>ID:</strong> #{{ solicitud.id }}</li>
+                <li><strong>Fecha de creación:</strong> {{ solicitud.fecha_creacion|date:"d/m/Y H:i" }}</li>
+                <li><strong>Aprobado por:</strong> {{ solicitud.lider_proyecto.get_full_name|default:solicitud.lider_proyecto.username }}</li>
+            </ul>
+        </div>
+        
+        <p>Gracias por utilizar nuestro sistema de tickets técnicos.</p>
+        
+        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+        <p style="font-size: 12px; color: #666;">
+            Este es un correo automático, por favor no responda a este mensaje.
+        </p>
+    </div>
+</body>
+</html>

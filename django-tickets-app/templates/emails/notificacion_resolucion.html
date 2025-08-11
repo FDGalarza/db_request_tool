@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Solicitud Resuelta</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #2c3e50;">Solicitud #{{ solicitud.id }} - {{ solicitud.get_estado_display }}</h2>
+        
+        <p>Estimado/a usuario/a,</p>
+        
+        <p>Su solicitud ha sido <strong>{{ solicitud.get_estado_display|lower }}</strong>.</p>
+        
+        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <h3 style="margin-top: 0;">Detalles de la Solicitud:</h3>
+            <ul style="list-style: none; padding: 0;">
+                <li><strong>ID:</strong> #{{ solicitud.id }}</li>
+                <li><strong>Tipo:</strong> {{ solicitud.get_tipo_solicitud_display }}</li>
+                <li><strong>Base de Datos/Aplicación:</strong> {{ solicitud.base_datos_aplicacion }}</li>
+                <li><strong>Estado:</strong> {{ solicitud.get_estado_display }}</li>
+                <li><strong>Fecha de creación:</strong> {{ solicitud.fecha_creacion|date:"d/m/Y H:i" }}</li>
+            </ul>
+        </div>
+        
+        {% if comentario %}
+        <div style="background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <h4 style="margin-top: 0;">Comentarios del gestor:</h4>
+            <p>{{ comentario|linebreaks }}</p>
+        </div>
+        {% endif %}
+        
+        {% if solicitud.script_sql_generado %}
+        <p><strong>Nota:</strong> Se ha adjuntado el script SQL generado para su solicitud.</p>
+        {% endif %}
+        
+        <p>Gracias por utilizar nuestro sistema de tickets técnicos.</p>
+        
+        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+        <p style="font-size: 12px; color: #666;">
+            Este es un correo automático, por favor no responda a este mensaje.
+        </p>
+    </div>
+</body>
+</html>

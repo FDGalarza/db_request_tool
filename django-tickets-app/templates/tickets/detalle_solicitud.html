@@ -1,0 +1,224 @@
+{% extends 'base.html' %}
+
+{% block title %}Solicitud #{{ solicitud.id }} - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-ticket-alt"></i> Solicitud #{{ solicitud.id }}</h2>
+    <div>
+        {% if puede_editar %}
+            <a href="{% url 'editar_solicitud' solicitud.pk %}" class="btn btn-warning me-2">
+                <i class="fas fa-edit"></i> Editar
+            </a>
+        {% endif %}
+        <a href="{% url 'dashboard' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Volver
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <!-- Información de la Solicitud -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-info-circle"></i> Información General</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Tipo:</strong> {{ solicitud.get_tipo_solicitud_display }}</p>
+                        <p><strong>Estado:</strong> 
+                            <span class="badge bg-{% if solicitud.estado == 'registrada' %}secondary{% elif solicitud.estado == 'revision' %}warning{% elif solicitud.estado == 'aprobada' %}success{% elif solicitud.estado == 'rechazada' %}danger{% elif solicitud.estado == 'cancelada' %}dark{% else %}info{% endif %}">
+                                {{ solicitud.get_estado_display }}
+                            </span>
+                        </p>
+                        <p><strong>Usuario:</strong> {{ solicitud.usuario.username }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Fecha de Creación:</strong> {{ solicitud.fecha_creacion|date:"d/m/Y H:i" }}</p>
+                        <p><strong>Última Modificación:</strong> {{ solicitud.fecha_modificacion|date:"d/m/Y H:i" }}</p>
+                        {% if solicitud.tipo_archivo %}
+                            <p><strong>Tipo de Archivo:</strong> {{ solicitud.get_tipo_archivo_display }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {% if solicitud.descripcion %}
+                <div class="mt-3">
+                    <strong>Descripción:</strong>
+                    <p class="mt-2">{{ solicitud.descripcion|linebreaks }}</p>
+                </div>
+                {% endif %}
+
+                <!-- Campos específicos para Pull Request / Despliegue -->
+                {% if solicitud.tipo_solicitud == 'pull_request' or solicitud.tipo_solicitud == 'despliegue' %}
+                <div class="mt-3">
+                    <h6>Información de Despliegue:</h6>
+                    {% if solicitud.url_commit %}
+                        <p><strong>URL Commit/PR:</strong> <a href="{{ solicitud.url_commit }}" target="_blank">{{ solicitud.url_commit }}</a></p>
+                    {% endif %}
+                    {% if solicitud.nombre_branch %}
+                        <p><strong>Branch:</strong> <code>{{ solicitud.nombre_branch }}</code></p>
+                    {% endif %}
+                    {% if solicitud.entorno %}
+                        <p><strong>Entorno:</strong> {{ solicitud.entorno }}</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- Archivo adjunto -->
+                {% if solicitud.archivo_adjunto %}
+                <div class="mt-3">
+                    <strong>Archivo Adjunto:</strong>
+                    <a href="{{ solicitud.archivo_adjunto.url }}" class="btn btn-sm btn-outline-primary ms-2" target="_blank">
+                        <i class="fas fa-download"></i> Descargar
+                    </a>
+                </div>
+                {% endif %}
+
+                <!-- Script SQL generado -->
+                {% if mostrar_script and solicitud.script_sql_generado %}
+                <div class="mt-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <strong>Script SQL Generado:</strong>
+                        <div>
+                            <a href="{% url 'descargar_script_sql' solicitud.pk %}" class="btn btn-sm btn-success me-2">
+                                <i class="fas fa-download"></i> Descargar SQL
+                            </a>
+                            {% if puede_gestionar %}
+                                <form method="post" style="display: inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" name="regenerar_sql" class="btn btn-sm btn-info">
+                                        <i class="fas fa-sync"></i> Regenerar
+                                    </button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <pre class="bg-light p-3 mt-2" style="max-height: 300px; overflow-y: auto;"><code>{{ solicitud.script_sql_generado }}</code></pre>
+                </div>
+                {% elif solicitud.archivo_adjunto and solicitud.tipo_archivo == 'excel' and user.userprofile.role == 'admin' or user.userprofile.role == 'db' %}
+                <!-- Botón para generar script SQL manualmente -->
+                <div class="mt-3">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Script SQL pendiente:</strong> El archivo Excel está listo para procesar.
+                    </div>
+                    <form method="post" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" name="generar_sql" class="btn btn-primary">
+                            <i class="fas fa-cogs"></i> Generar Script SQL
+                        </button>
+                    </form>
+                </div>
+                {% elif solicitud.archivo_adjunto and solicitud.tipo_archivo == 'excel' %}
+                <!-- Mensaje para usuarios que no pueden generar script -->
+                <div class="mt-3">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-clock"></i>
+                        <strong>Archivo adjunto:</strong> El script SQL será generado por el equipo de Base de Datos.
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Historial de Estados -->
+        {% if solicitud.historial.all %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-history"></i> Historial de Estados</h5>
+            </div>
+            <div class="card-body">
+                {% for historial in solicitud.historial.all %}
+                <div class="d-flex mb-3">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-circle text-primary"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <div class="fw-bold">
+                            {{ historial.get_estado_anterior_display }} → {{ historial.get_estado_nuevo_display }}
+                        </div>
+                        <small class="text-muted">
+                            Por {{ historial.usuario_cambio.username }} el {{ historial.fecha_cambio|date:"d/m/Y H:i" }}
+                        </small>
+                        {% if historial.comentario %}
+                            <p class="mt-1 mb-0">{{ historial.comentario }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Comentarios -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-comments"></i> Comentarios</h5>
+            </div>
+            <div class="card-body">
+                {% if solicitud.comentarios.all %}
+                    {% for comentario in solicitud.comentarios.all %}
+                    <div class="d-flex mb-3">
+                        <div class="flex-shrink-0">
+                            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                {{ comentario.usuario.username|first|upper }}
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <div class="fw-bold">{{ comentario.usuario.username }}</div>
+                            <small class="text-muted">{{ comentario.fecha_creacion|date:"d/m/Y H:i" }}</small>
+                            <p class="mt-1 mb-0">{{ comentario.texto|linebreaks }}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">No hay comentarios aún.</p>
+                {% endif %}
+
+                <!-- Formulario para agregar comentario -->
+                <hr>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="{{ comentario_form.texto.id_for_label }}" class="form-label">Agregar Comentario</label>
+                        {{ comentario_form.texto }}
+                    </div>
+                    <button type="submit" name="agregar_comentario" class="btn btn-primary">
+                        <i class="fas fa-comment"></i> Agregar Comentario
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <!-- Panel de Acciones -->
+        {% if puede_cambiar_estado %}
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-cogs"></i> Cambiar Estado</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="{{ cambiar_estado_form.nuevo_estado.id_for_label }}" class="form-label">Nuevo Estado</label>
+                        {{ cambiar_estado_form.nuevo_estado }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="{{ cambiar_estado_form.comentario.id_for_label }}" class="form-label">Comentario (opcional)</label>
+                        {{ cambiar_estado_form.comentario }}
+                    </div>
+                    <button type="submit" name="cambiar_estado" class="btn btn-warning w-100">
+                        <i class="fas fa-edit"></i> Cambiar Estado
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

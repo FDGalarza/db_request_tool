@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+
+{% block title %}Solicitudes Pendientes de Script - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-database"></i> Solicitudes Pendientes de Script SQL</h2>
+    <a href="{% url 'dashboard' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Volver al Dashboard
+    </a>
+</div>
+
+<div class="alert alert-info">
+    <i class="fas fa-info-circle"></i>
+    <strong>Información:</strong> Estas son las solicitudes que tienen archivos Excel adjuntos pero aún no tienen script SQL generado.
+</div>
+
+<!-- Lista de Solicitudes Pendientes -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-clock"></i> Solicitudes Pendientes ({{ page_obj.paginator.count }})</h5>
+    </div>
+    <div class="card-body">
+        {% if page_obj %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Tipo</th>
+                            <th>Usuario</th>
+                            <th>Base de Datos</th>
+                            <th>Estado</th>
+                            <th>Fecha</th>
+                            <th>Archivo</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for solicitud in page_obj %}
+                        <tr>
+                            <td>{{ solicitud.id }}</td>
+                            <td>{{ solicitud.get_tipo_solicitud_display }}</td>
+                            <td>
+                                {{ solicitud.usuario.username }}
+                                {% if solicitud.usuario.userprofile %}
+                                    <small class="text-muted d-block">({{ solicitud.usuario.userprofile.get_role_display }})</small>
+                                {% endif %}
+                            </td>
+                            <td>{{ solicitud.base_datos_aplicacion }}</td>
+                            <td>
+                                <span class="badge bg-{% if solicitud.estado == 'registrada' %}secondary{% elif solicitud.estado == 'revision' %}warning{% elif solicitud.estado == 'aprobada' %}success{% elif solicitud.estado == 'rechazada' %}danger{% elif solicitud.estado == 'cancelada' %}dark{% elif solicitud.estado == 'pendiente_aprobacion_lider' %}info{% else %}primary{% endif %}">
+                                    {{ solicitud.get_estado_display }}
+                                </span>
+                            </td>
+                            <td>{{ solicitud.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                {% if solicitud.archivo_adjunto %}
+                                    <a href="{{ solicitud.archivo_adjunto.url }}" target="_blank" class="btn btn-sm btn-outline-info">
+                                        <i class="fas fa-file-excel"></i> Excel
+                                    </a>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'detalle_solicitud' solicitud.pk %}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-cogs"></i> Generar Script
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginación -->
+            {% if page_obj.has_other_pages %}
+            <nav aria-label="Paginación">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+                        </li>
+                    {% endif %}
+                    
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ num }}</span>
+                            </li>
+                        {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">Siguiente</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        {% else %}
+            <div class="text-center py-4">
+                <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                <p class="text-muted">¡Excelente! No hay solicitudes pendientes de generar script SQL.</p>
+                <a href="{% url 'dashboard' %}" class="btn btn-primary">
+                    <i class="fas fa-tachometer-alt"></i> Ir al Dashboard
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

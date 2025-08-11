@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Aprobación Requerida</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #2c3e50;">Aprobación Requerida - Solicitud #{{ solicitud.id }}</h2>
+        
+        <p>Estimado/a {{ solicitud.lider_proyecto.get_full_name|default:solicitud.lider_proyecto.username }},</p>
+        
+        <p>Se ha creado una nueva solicitud de <strong>creación de usuario</strong> que requiere su aprobación.</p>
+        
+        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <h3 style="margin-top: 0;">Detalles de la Solicitud:</h3>
+            <ul style="list-style: none; padding: 0;">
+                <li><strong>ID:</strong> #{{ solicitud.id }}</li>
+                <li><strong>Tipo:</strong> {{ solicitud.get_tipo_solicitud_display }}</li>
+                <li><strong>Solicitante:</strong> {{ solicitud.usuario.get_full_name|default:solicitud.usuario.username }}</li>
+                <li><strong>Base de Datos/Aplicación:</strong> {{ solicitud.base_datos_aplicacion }}</li>
+                <li><strong>Fecha de solicitud:</strong> {{ solicitud.fecha_creacion|date:"d/m/Y H:i" }}</li>
+            </ul>
+        </div>
+        
+        {% if solicitud.descripcion %}
+        <div style="background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <h4 style="margin-top: 0;">Descripción:</h4>
+            <p>{{ solicitud.descripcion|linebreaks }}</p>
+        </div>
+        {% endif %}
+        
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="{{ url_detalle }}" style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                Ver Solicitud y Aprobar/Rechazar
+            </a>
+        </div>
+        
+        <p>Por favor, revise la solicitud y tome la acción correspondiente.</p>
+        
+        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+        <p style="font-size: 12px; color: #666;">
+            Este es un correo automático, por favor no responda a este mensaje.
+        </p>
+    </div>
+</body>
+</html>
