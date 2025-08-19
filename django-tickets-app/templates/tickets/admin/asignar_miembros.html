@@ -1,0 +1,266 @@
+{% extends 'base.html' %}
+
+{% block title %}Asignar Miembros - {{ proyecto.nombre }} - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-users"></i> Asignar Miembros al Proyecto</h2>
+    <a href="{% url 'detalle_proyecto' proyecto.pk %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Volver al Proyecto
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-user-plus"></i> Seleccionar Miembros</h5>
+            </div>
+            <div class="card-body">
+                <!-- Filtros -->
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <label for="filtro-rol" class="form-label">Filtrar por Rol:</label>
+                        <select id="filtro-rol" class="form-select">
+                            <option value="">Todos los roles</option>
+                            <option value="dev">Ingeniero de Desarrollo</option>
+                            <option value="db">Ingeniero de Bases de Datos</option>
+                            <option value="devops">Ingeniero DevOps</option>
+                            <option value="lider">Líder de Proyecto</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="filtro-estado" class="form-label">Filtrar por Estado:</label>
+                        <select id="filtro-estado" class="form-select">
+                            <option value="">Todos</option>
+                            <option value="activo">Activos</option>
+                            <option value="inactivo">Inactivos</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="buscar-usuario" class="form-label">Buscar Usuario:</label>
+                        <input type="text" id="buscar-usuario" class="form-control" placeholder="Nombre de usuario...">
+                    </div>
+                </div>
+
+                <!-- Botones de selección masiva -->
+                <div class="mb-3">
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="seleccionarTodos()">
+                        <i class="fas fa-check-square"></i> Seleccionar Todos
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deseleccionarTodos()">
+                        <i class="fas fa-square"></i> Deseleccionar Todos
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-info" onclick="invertirSeleccion()">
+                        <i class="fas fa-exchange-alt"></i> Invertir Selección
+                    </button>
+                </div>
+
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <!-- Lista de usuarios disponibles -->
+                    <div class="row" id="lista-usuarios">
+                        {% for user in form.miembros.field.queryset %}
+                        <div class="col-md-6 mb-3 usuario-card" 
+                             data-rol="{{ user.profile.role }}" 
+                             data-activo="{{ user.is_active|yesno:'activo,inactivo' }}"
+                             data-username="{{ user.username|lower }}">
+                            <div class="card h-100 {% if user in proyecto.miembros_equipo.all %}border-success{% endif %}">
+                                <div class="card-body">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" 
+                                               name="miembros" value="{{ user.id }}" 
+                                               id="user_{{ user.id }}"
+                                               {% if user in proyecto.miembros_equipo.all %}checked{% endif %}>
+                                        <label class="form-check-label w-100" for="user_{{ user.id }}">
+                                            <div class="d-flex align-items-center">
+                                                <div class="flex-shrink-0 me-3">
+                                                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" 
+                                                         style="width: 40px; height: 40px;">
+                                                        {{ user.username|first|upper }}
+                                                    </div>
+                                                </div>
+                                                <div class="flex-grow-1">
+                                                    <h6 class="mb-1">{{ user.username }}</h6>
+                                                    <p class="mb-1 text-muted small">
+                                                        {{ user.profile.get_role_display }}
+                                                    </p>
+                                                    {% if user.profile.departamento %}
+                                                        <p class="mb-1 text-muted small">
+                                                            <i class="fas fa-building"></i> {{ user.profile.departamento }}
+                                                        </p>
+                                                    {% endif %}
+                                                    <div class="d-flex align-items-center">
+                                                        {% if user.is_active %}
+                                                            <span class="badge bg-success me-2">Activo</span>
+                                                        {% else %}
+                                                            <span class="badge bg-danger me-2">Inactivo</span>
+                                                        {% endif %}
+                                                        {% if user in proyecto.miembros_equipo.all %}
+                                                            <span class="badge bg-info">Ya asignado</span>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="col-12">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i>
+                                No hay usuarios disponibles para asignar.
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Contador de seleccionados -->
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-info-circle"></i>
+                        <span id="contador-seleccionados">0</span> usuarios seleccionados
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="fas fa-save"></i> Asignar Miembros Seleccionados
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <!-- Información del Proyecto -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-project-diagram"></i> Información del Proyecto</h5>
+            </div>
+            <div class="card-body">
+                <h6>{{ proyecto.codigo }} - {{ proyecto.nombre }}</h6>
+                <p class="text-muted">{{ proyecto.descripcion|default:"Sin descripción" }}</p>
+                
+                <hr>
+                
+                <div class="row text-center">
+                    <div class="col-6">
+                        <div class="border-end">
+                            <h4 class="text-primary">{{ proyecto.get_solicitudes_total }}</h4>
+                            <small class="text-muted">Solicitudes</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-success">{{ proyecto.miembros_equipo.count }}</h4>
+                        <small class="text-muted">Miembros</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Miembros Actuales -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-users"></i> Miembros Actuales</h5>
+            </div>
+            <div class="card-body">
+                {% if proyecto.miembros_equipo.all %}
+                    {% for miembro in proyecto.miembros_equipo.all %}
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="flex-shrink-0 me-2">
+                            <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" 
+                                 style="width: 30px; height: 30px; font-size: 12px;">
+                                {{ miembro.username|first|upper }}
+                            </div>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="fw-bold">{{ miembro.username }}</div>
+                            <small class="text-muted">{{ miembro.profile.get_role_display }}</small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">No hay miembros asignados aún.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Funciones de filtrado y selección
+function filtrarUsuarios() {
+    const filtroRol = document.getElementById('filtro-rol').value;
+    const filtroEstado = document.getElementById('filtro-estado').value;
+    const busqueda = document.getElementById('buscar-usuario').value.toLowerCase();
+    
+    const cards = document.querySelectorAll('.usuario-card');
+    let visibles = 0;
+    
+    cards.forEach(card => {
+        const rol = card.dataset.rol;
+        const activo = card.dataset.activo;
+        const username = card.dataset.username;
+        
+        let mostrar = true;
+        
+        if (filtroRol && rol !== filtroRol) mostrar = false;
+        if (filtroEstado && activo !== filtroEstado) mostrar = false;
+        if (busqueda && !username.includes(busqueda)) mostrar = false;
+        
+        if (mostrar) {
+            card.style.display = 'block';
+            visibles++;
+        } else {
+            card.style.display = 'none';
+        }
+    });
+    
+    // Actualizar contador
+    actualizarContador();
+}
+
+function seleccionarTodos() {
+    const checkboxes = document.querySelectorAll('.usuario-card:not([style*="display: none"]) input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = true);
+    actualizarContador();
+}
+
+function deseleccionarTodos() {
+    const checkboxes = document.querySelectorAll('.usuario-card:not([style*="display: none"]) input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = false);
+    actualizarContador();
+}
+
+function invertirSeleccion() {
+    const checkboxes = document.querySelectorAll('.usuario-card:not([style*="display: none"]) input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = !cb.checked);
+    actualizarContador();
+}
+
+function actualizarContador() {
+    const seleccionados = document.querySelectorAll('input[name="miembros"]:checked').length;
+    document.getElementById('contador-seleccionados').textContent = seleccionados;
+}
+
+// Event listeners
+document.getElementById('filtro-rol').addEventListener('change', filtrarUsuarios);
+document.getElementById('filtro-estado').addEventListener('change', filtrarUsuarios);
+document.getElementById('buscar-usuario').addEventListener('input', filtrarUsuarios);
+
+// Actualizar contador cuando se cambian los checkboxes
+document.addEventListener('change', function(e) {
+    if (e.target.name === 'miembros') {
+        actualizarContador();
+    }
+});
+
+// Inicializar contador
+document.addEventListener('DOMContentLoaded', function() {
+    actualizarContador();
+});
+</script>
+{% endblock %}

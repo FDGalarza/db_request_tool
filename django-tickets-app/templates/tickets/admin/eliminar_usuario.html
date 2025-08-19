@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block title %}Eliminar Usuario - Sistema de Tickets{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h4><i class="fas fa-user-times"></i> Eliminar Usuario</h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>¡Atención!</strong> Esta acción no se puede deshacer.
+                </div>
+                
+                <p>¿Estás seguro de que deseas eliminar el siguiente usuario?</p>
+                
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6><strong>Usuario:</strong> {{ usuario.username }}</h6>
+                        <p><strong>Nombre:</strong> {{ usuario.get_full_name|default:"Sin especificar" }}</p>
+                        <p><strong>Email:</strong> {{ usuario.email|default:"Sin email" }}</p>
+                        {% if usuario.profile %}
+                        <p><strong>Rol:</strong> {{ usuario.profile.get_role_display }}</p>
+                        <p><strong>Departamento:</strong> {{ usuario.profile.departamento|default:"Sin especificar" }}</p>
+                        {% endif %}
+                        <p><strong>Fecha de registro:</strong> {{ usuario.date_joined|date:"d/m/Y H:i" }}</p>
+                        <p><strong>Último acceso:</strong> 
+                            {% if usuario.last_login %}
+                                {{ usuario.last_login|date:"d/m/Y H:i" }}
+                            {% else %}
+                                <span class="text-muted">Nunca</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="d-flex justify-content-between mt-4">
+                    <a href="{% url 'gestionar_usuarios' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Cancelar
+                    </a>
+                    <form method="post" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash"></i> Eliminar Usuario
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

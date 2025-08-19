@@ -1,0 +1,341 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Editar Proyecto - {{ proyecto.nombre }} - Sistema de Tickets{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-edit"></i> Editar Proyecto</h2>
+                <div>
+                    <a href="{% url 'asignar_miembros_proyecto' proyecto.pk %}" class="btn btn-info">
+                        <i class="fas fa-users"></i> Gestionar Miembros
+                    </a>
+                    <a href="{% url 'detalle_proyecto' proyecto.pk %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Volver
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Formulario de Edición -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-project-diagram"></i> Información del Proyecto</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="id_nombre" class="form-label">Nombre del Proyecto *</label>
+                                    {{ form.nombre }}
+                                    {% if form.nombre.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.nombre.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">
+                                        Nombre descriptivo del proyecto
+                                    </small>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="id_codigo" class="form-label">Código del Proyecto *</label>
+                                    {{ form.codigo }}
+                                    {% if form.codigo.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.codigo.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">
+                                        Código único para identificar el proyecto (ej: PROJ001)
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label for="id_descripcion" class="form-label">Descripción</label>
+                            {{ form.descripcion }}
+                            {% if form.descripcion.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.descripcion.errors.0 }}
+                                </div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                Descripción detallada del proyecto y sus objetivos
+                            </small>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="id_cliente" class="form-label">Cliente</label>
+                                    {{ form.cliente }}
+                                    {% if form.cliente.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.cliente.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="id_lider_proyecto" class="form-label">Líder del Proyecto</label>
+                                    {{ form.lider_proyecto }}
+                                    {% if form.lider_proyecto.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.lider_proyecto.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">
+                                        Usuario responsable de liderar el proyecto
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="id_base_datos_principal" class="form-label">Base de Datos Principal</label>
+                                    {{ form.base_datos_principal }}
+                                    {% if form.base_datos_principal.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.base_datos_principal.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">
+                                        Base de datos principal utilizada en el proyecto
+                                    </small>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="id_motor_bd" class="form-label">Motor de Base de Datos</label>
+                                    {{ form.motor_bd }}
+                                    {% if form.motor_bd.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.motor_bd.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="form-group mb-3">
+                                    <label for="id_estado" class="form-label">Estado del Proyecto</label>
+                                    {{ form.estado }}
+                                    {% if form.estado.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.estado.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="form-group mb-3">
+                                    <label for="id_fecha_inicio" class="form-label">Fecha de Inicio</label>
+                                    {{ form.fecha_inicio }}
+                                    {% if form.fecha_inicio.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.fecha_inicio.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="form-group mb-3">
+                                    <label for="id_fecha_fin_estimada" class="form-label">Fecha de Fin Estimada</label>
+                                    {{ form.fecha_fin_estimada }}
+                                    {% if form.fecha_fin_estimada.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.fecha_fin_estimada.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label for="id_configuraciones" class="form-label">Configuraciones Adicionales</label>
+                            {{ form.configuraciones }}
+                            {% if form.configuraciones.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.configuraciones.errors.0 }}
+                                </div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                Configuraciones específicas del proyecto en formato JSON (opcional)
+                            </small>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <div class="form-check">
+                                {{ form.activo }}
+                                <label class="form-check-label" for="id_activo">
+                                    Proyecto activo
+                                </label>
+                            </div>
+                            {% if form.activo.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.activo.errors.0 }}
+                                </div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                Desmarcar para inactivar el proyecto
+                            </small>
+                        </div>
+
+                        <hr>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'detalle_proyecto' proyecto.pk %}" class="btn btn-secondary btn-lg">
+                                <i class="fas fa-times"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-save"></i> Guardar Cambios
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información del Proyecto -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-info-circle"></i> Información Actual</h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <div class="avatar-lg bg-primary text-white rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center" 
+                             style="width: 80px; height: 80px; font-size: 1.5rem;">
+                            {{ proyecto.codigo|slice:":2"|upper }}
+                        </div>
+                        <h5>{{ proyecto.nombre }}</h5>
+                        <span class="badge bg-{% if proyecto.estado == 'activo' %}success{% elif proyecto.estado == 'en_pausa' %}warning{% else %}secondary{% endif %} mb-2">
+                            {{ proyecto.get_estado_display }}
+                        </span>
+                    </div>
+                    
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Código:</strong></td>
+                            <td>{{ proyecto.codigo }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cliente:</strong></td>
+                            <td>{{ proyecto.cliente|default:"No especificado" }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Líder:</strong></td>
+                            <td>
+                                {% if proyecto.lider_proyecto %}
+                                    {{ proyecto.lider_proyecto.get_full_name|default:proyecto.lider_proyecto.username }}
+                                {% else %}
+                                    <span class="text-muted">Sin asignar</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Motor BD:</strong></td>
+                            <td>{{ proyecto.get_motor_bd_display }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Creado:</strong></td>
+                            <td>{{ proyecto.fecha_creacion|date:"d/m/Y" }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Estadísticas del Proyecto -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-chart-bar"></i> Estadísticas</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="border-end">
+                                <h4 class="text-primary mb-0">{{ proyecto.get_solicitudes_total }}</h4>
+                                <small class="text-muted">Total Solicitudes</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <h4 class="text-warning mb-0">{{ proyecto.get_solicitudes_activas }}</h4>
+                            <small class="text-muted">Activas</small>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="text-center">
+                        <h4 class="text-info mb-0">{{ proyecto.miembros_equipo.count }}</h4>
+                        <small class="text-muted">Miembros del Equipo</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Miembros del Equipo -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5><i class="fas fa-users"></i> Miembros del Equipo</h5>
+                    <a href="{% url 'asignar_miembros_proyecto' proyecto.pk %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-edit"></i> Gestionar
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if proyecto.miembros_equipo.exists %}
+                        <div style="max-height: 200px; overflow-y: auto;">
+                            {% for miembro in proyecto.miembros_equipo.all %}
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="avatar-sm bg-secondary text-white rounded-circle me-2 d-flex align-items-center justify-content-center" 
+                                         style="width: 30px; height: 30px; font-size: 0.8rem;">
+                                        {{ miembro.first_name|first|default:miembro.user.username|first|upper }}{{ miembro.last_name|first|upper }}
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="small fw-bold">{{ miembro.get_full_name|default:miembro.user.username }}</div>
+                                        {% if miembro.profile %}
+                                            <small class="text-muted">{{ miembro.profile.get_role_display }}</small>
+                                        {% endif %}
+                                    </div>
+                                    {% if not miembro.is_active %}
+                                        <span class="badge bg-danger badge-sm">Inactivo</span>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center text-muted py-3">
+                            <i class="fas fa-users fa-2x mb-2"></i>
+                            <p class="mb-0">No hay miembros asignados</p>
+                            <a href="{% url 'asignar_miembros_proyecto' proyecto.pk %}" class="btn btn-sm btn-primary mt-2">
+                                <i class="fas fa-plus"></i> Asignar Miembros
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

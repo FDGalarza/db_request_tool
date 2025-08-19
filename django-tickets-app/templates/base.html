@@ -3,63 +3,92 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Sistema de Tickets Técnicos{% endblock %}</title>
+    <title>{% block title %}Sistema de Tickets{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
             <a class="navbar-brand" href="{% url 'dashboard' %}">
-                <i class="fas fa-ticket-alt"></i> Tickets Técnicos
+                <i class="fas fa-ticket-alt"></i> Sistema de Tickets
             </a>
             
             {% if user.is_authenticated %}
-            <div class="navbar-nav ms-auto">
-                <div class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="fas fa-user"></i> {{ user.username }}
-                        {% if user.userprofile %}
-                            <small class="text-muted">({{ user.userprofile.get_role_display }})</small>
-                        {% endif %}
-                    </a>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="{% url 'dashboard' %}">
-                            <i class="fas fa-tachometer-alt"></i> Dashboard
-                        </a></li>
-                        <li><a class="dropdown-item" href="{% url 'crear_solicitud' %}">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'dashboard' %}">
+                            <i class="fas fa-home"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'crear_solicitud' %}">
                             <i class="fas fa-plus"></i> Nueva Solicitud
-                        </a></li>
-                        {% if user.userprofile.role == 'admin' %}
-                        <li><a class="dropdown-item" href="{% url 'estadisticas' %}">
-                            <i class="fas fa-chart-bar"></i> Estadísticas
-                        </a></li>
-                        <li><a class="dropdown-item" href="/admin/">
-                            <i class="fas fa-cog"></i> Administración
-                        </a></li>
-                        {% endif %}
-                        {% if user.userprofile.role == 'admin' or user.userprofile.role == 'db' %}
-                        <li><a class="dropdown-item" href="{% url 'solicitudes_pendientes_script' %}">
-                            <i class="fas fa-database"></i> Scripts Pendientes
-                        </a></li>
-                        {% endif %}
-                        <li><hr class="dropdown-divider"></li>
-                        <li>
-                            <form method="post" action="{% url 'logout' %}" style="display: inline;">
-                                {% csrf_token %}
-                                <button type="submit" class="dropdown-item" style="border: none; background: none; width: 100%; text-align: left;">
-                                    <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
-                                </button>
-                            </form>
-                        </li>
-                    </ul>
-                </div>
+                        </a>
+                    </li>
+                    
+                    {% if user.profile.role == 'admin' %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-cogs"></i> Administración
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{% url 'panel_administracion' %}">
+                                <i class="fas fa-tachometer-alt"></i> Panel Principal
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'lista_proyectos' %}">
+                                <i class="fas fa-project-diagram"></i> Gestionar Proyectos
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'gestionar_usuarios' %}">
+                                <i class="fas fa-users"></i> Gestionar Usuarios
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'estadisticas_avanzadas' %}">
+                                <i class="fas fa-chart-bar"></i> Estadísticas
+                            </a></li>
+                        </ul>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'lista_proyectos' %}">
+                            <i class="fas fa-project-diagram"></i> Mis Proyectos
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+                
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user"></i> {{ user.username }}
+                            {% if user.profile %}
+                                <small class="text-light">({{ user.profile.get_role_display }})</small>
+                            {% endif %}
+                        </a>
+                        <ul class="dropdown-menu">
+                            {% if user.profile.role == 'admin' %}
+                            <li><a class="dropdown-item" href="{% url 'admin:index' %}">
+                                <i class="fas fa-database"></i> Django Admin
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            {% endif %}
+                            <li><a class="dropdown-item" href="{% url 'logout' %}">
+                                <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                            </a></li>
+                        </ul>
+                    </li>
+                </ul>
             </div>
             {% endif %}
         </div>
     </nav>
 
-    <main class="container mt-4">
+    <main class="container-fluid mt-4">
         {% if messages %}
             {% for message in messages %}
                 <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
@@ -69,8 +98,7 @@
             {% endfor %}
         {% endif %}
 
-        {% block content %}
-        {% endblock %}
+        {% block content %}{% endblock %}
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>

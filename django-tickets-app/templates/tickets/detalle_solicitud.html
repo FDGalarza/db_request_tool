@@ -34,10 +34,18 @@
                             </span>
                         </p>
                         <p><strong>Usuario:</strong> {{ solicitud.usuario.username }}</p>
+                        <p><strong>Proyecto:</strong> 
+                            {% if solicitud.proyecto %}
+                                {{ solicitud.proyecto.codigo }} - {{ solicitud.proyecto.nombre }}
+                            {% else %}
+                                Sin proyecto asignado
+                            {% endif %}
+                        </p>
                     </div>
                     <div class="col-md-6">
                         <p><strong>Fecha de Creación:</strong> {{ solicitud.fecha_creacion|date:"d/m/Y H:i" }}</p>
                         <p><strong>Última Modificación:</strong> {{ solicitud.fecha_modificacion|date:"d/m/Y H:i" }}</p>
+                        <p><strong>Base de Datos/Aplicación:</strong> {{ solicitud.base_datos_aplicacion }}</p>
                         {% if solicitud.tipo_archivo %}
                             <p><strong>Tipo de Archivo:</strong> {{ solicitud.get_tipo_archivo_display }}</p>
                         {% endif %}
@@ -51,22 +59,6 @@
                 </div>
                 {% endif %}
 
-                <!-- Campos específicos para Pull Request / Despliegue -->
-                {% if solicitud.tipo_solicitud == 'pull_request' or solicitud.tipo_solicitud == 'despliegue' %}
-                <div class="mt-3">
-                    <h6>Información de Despliegue:</h6>
-                    {% if solicitud.url_commit %}
-                        <p><strong>URL Commit/PR:</strong> <a href="{{ solicitud.url_commit }}" target="_blank">{{ solicitud.url_commit }}</a></p>
-                    {% endif %}
-                    {% if solicitud.nombre_branch %}
-                        <p><strong>Branch:</strong> <code>{{ solicitud.nombre_branch }}</code></p>
-                    {% endif %}
-                    {% if solicitud.entorno %}
-                        <p><strong>Entorno:</strong> {{ solicitud.entorno }}</p>
-                    {% endif %}
-                </div>
-                {% endif %}
-
                 <!-- Archivo adjunto -->
                 {% if solicitud.archivo_adjunto %}
                 <div class="mt-3">
@@ -77,49 +69,64 @@
                 </div>
                 {% endif %}
 
-                <!-- Script SQL generado -->
+                <!-- SECCIÓN DE SCRIPT SQL - COMPLETAMENTE CORREGIDA -->
                 {% if mostrar_script and solicitud.script_sql_generado %}
-                <div class="mt-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <strong>Script SQL Generado:</strong>
-                        <div>
-                            <a href="{% url 'descargar_script_sql' solicitud.pk %}" class="btn btn-sm btn-success me-2">
-                                <i class="fas fa-download"></i> Descargar SQL
-                            </a>
-                            {% if puede_gestionar %}
-                                <form method="post" style="display: inline;">
-                                    {% csrf_token %}
-                                    <button type="submit" name="regenerar_sql" class="btn btn-sm btn-info">
-                                        <i class="fas fa-sync"></i> Regenerar
-                                    </button>
-                                </form>
-                            {% endif %}
+                    <!-- Ya tiene script generado - mostrar -->
+                    <div class="mt-4">
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle"></i>
+                            <strong>Script SQL generado exitosamente</strong>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6><i class="fas fa-code"></i> Script SQL Generado:</h6>
+                            <div>
+                                {% if puede_descargar_script %}
+                                <a href="{% url 'descargar_script_sql' solicitud.pk %}" class="btn btn-sm btn-success me-2">
+                                    <i class="fas fa-download"></i> Descargar SQL
+                                </a>
+                                {% endif %}
+                                {% if puede_generar_script %}
+                                    <form method="post" style="display: inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" name="generar_sql" class="btn btn-sm btn-info">
+                                            <i class="fas fa-sync"></i> Regenerar
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <pre class="bg-light p-3 border rounded" style="max-height: 400px; overflow-y: auto;"><code>{{ solicitud.script_sql_generado }}</code></pre>
+                    </div>
+                
+                {% elif puede_generar_script and solicitud.archivo_adjunto and not solicitud.script_sql_generado %}
+                    <!-- BOTÓN PARA GENERAR SCRIPT - CONDICIÓN CORREGIDA -->
+                    <div class="mt-4">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Archivo Excel listo para procesar:</strong> Haz clic en el botón para generar el script SQL automáticamente.
+                        </div>
+                        <div class="text-center">
+                            <form method="post" style="display: inline;">
+                                {% csrf_token %}
+                                <div class="form-group">
+                                <label for="comentario">Comentario:</label>
+                                    <textarea name="comentario" class="form-control" rows="3" required></textarea>
+                                </div>
+                                <button type="submit" name="generar_sql" class="btn btn-success btn-lg">
+                                    <i class="fas fa-cogs"></i> Generar Script SQL
+                                </button>
+                            </form>
                         </div>
                     </div>
-                    <pre class="bg-light p-3 mt-2" style="max-height: 300px; overflow-y: auto;"><code>{{ solicitud.script_sql_generado }}</code></pre>
-                </div>
-                {% elif solicitud.archivo_adjunto and solicitud.tipo_archivo == 'excel' and user.userprofile.role == 'admin' or user.userprofile.role == 'db' %}
-                <!-- Botón para generar script SQL manualmente -->
-                <div class="mt-3">
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle"></i>
-                        <strong>Script SQL pendiente:</strong> El archivo Excel está listo para procesar.
+                
+                {% elif solicitud.archivo_adjunto and solicitud.tipo_archivo == 'excel' and not puede_generar_script %}
+                    <!-- Mensaje para usuarios que no pueden generar script -->
+                    <div class="mt-4">
+                        <div class="alert alert-warning">
+                            <i class="fas fa-clock"></i>
+                            <strong>Archivo Excel adjunto:</strong> El script SQL será generado por el equipo de Base de Datos.
+                        </div>
                     </div>
-                    <form method="post" style="display: inline;">
-                        {% csrf_token %}
-                        <button type="submit" name="generar_sql" class="btn btn-primary">
-                            <i class="fas fa-cogs"></i> Generar Script SQL
-                        </button>
-                    </form>
-                </div>
-                {% elif solicitud.archivo_adjunto and solicitud.tipo_archivo == 'excel' %}
-                <!-- Mensaje para usuarios que no pueden generar script -->
-                <div class="mt-3">
-                    <div class="alert alert-warning">
-                        <i class="fas fa-clock"></i>
-                        <strong>Archivo adjunto:</strong> El script SQL será generado por el equipo de Base de Datos.
-                    </div>
-                </div>
                 {% endif %}
             </div>
         </div>
@@ -197,7 +204,7 @@
     <div class="col-md-4">
         <!-- Panel de Acciones -->
         {% if puede_cambiar_estado %}
-        <div class="card">
+        <div class="card mb-3">
             <div class="card-header">
                 <h5 class="mb-0"><i class="fas fa-cogs"></i> Cambiar Estado</h5>
             </div>
@@ -219,6 +226,45 @@
             </div>
         </div>
         {% endif %}
+
+        <!-- Panel de Debug (temporal para verificar) -->
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0"><i class="fas fa-bug"></i> Debug Info</h6>
+            </div>
+            <div class="card-body small">
+                <p><strong>Tu usuario:</strong> {{ user.username }}</p>
+                <p><strong>Tu rol:</strong> {{ user_profile.role }} ({{ user_profile.get_role_display }})</p>
+                <hr>
+                <p><strong>Puede generar script:</strong> 
+                    <span class="badge bg-{{ puede_generar_script|yesno:'success,danger' }}">
+                        {{ puede_generar_script|yesno:"SÍ,NO" }}
+                    </span>
+                </p>
+                <p><strong>Puede ver script:</strong> 
+                    <span class="badge bg-{{ mostrar_script|yesno:'success,danger' }}">
+                        {{ mostrar_script|yesno:"SÍ,NO" }}
+                    </span>
+                </p>
+                <p><strong>Tiene archivo:</strong> 
+                    <span class="badge bg-{{ solicitud.archivo_adjunto|yesno:'success,danger' }}">
+                        {{ solicitud.archivo_adjunto|yesno:"SÍ,NO" }}
+                    </span>
+                </p>
+                <p><strong>Script generado:</strong> 
+                    <span class="badge bg-{{ solicitud.script_sql_generado|yesno:'success,danger' }}">
+                        {{ solicitud.script_sql_generado|yesno:"SÍ,NO" }}
+                    </span>
+                </p>
+                <hr>
+                <p><strong>Condición botón:</strong><br>
+                    <small>puede_generar AND tiene_archivo AND NOT script_generado</small><br>
+                    <span class="badge bg-{% if puede_generar_script and solicitud.archivo_adjunto and not solicitud.script_sql_generado %}success{% else %}danger{% endif %}">
+                        {{ puede_generar_script|yesno:"✓,✗" }} AND {{ solicitud.archivo_adjunto|yesno:"✓,✗" }} AND {{ solicitud.script_sql_generado|yesno:"✗,✓" }}
+                    </span>
+                </p>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

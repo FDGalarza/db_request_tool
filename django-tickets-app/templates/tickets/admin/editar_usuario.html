@@ -1,0 +1,224 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Editar Usuario - {{ usuario.username }} - Sistema de Tickets{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-user-edit"></i> Editar Usuario</h2>
+                <div>
+                    <a href="{% url 'inactivar_usuario' usuario.pk %}" class="btn btn-warning">
+                        <i class="fas fa-user-slash"></i> 
+                        {% if usuario.is_active %}Inactivar{% else %}Activar{% endif %}
+                    </a>
+                    <a href="{% url 'gestionar_usuarios' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Volver
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Formulario de Edición -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-edit"></i> Información del Usuario</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="id_role" class="form-label">Rol del Usuario</label>
+                                    {{ form.role }}
+                                    {% if form.role.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.role.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">
+                                        Define los permisos y accesos del usuario en el sistema
+                                    </small>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="id_departamento" class="form-label">Departamento</label>
+                                    {{ form.departamento }}
+                                    {% if form.departamento.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.departamento.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="id_telefono" class="form-label">Teléfono</label>
+                                    {{ form.telefono }}
+                                    {% if form.telefono.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.telefono.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label class="form-label">Estado del Perfil</label>
+                                    <div class="form-check">
+                                        {{ form.activo }}
+                                        <label class="form-check-label" for="id_activo">
+                                            Perfil activo
+                                        </label>
+                                    </div>
+                                    {% if form.activo.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.activo.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">
+                                        Controla si el perfil del usuario está activo
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label for="id_proyectos_asignados" class="form-label">Proyectos Asignados</label>
+                            {{ form.proyectos_asignados }}
+                            {% if form.proyectos_asignados.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.proyectos_asignados.errors.0 }}
+                                </div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                Mantén presionado Ctrl (Cmd en Mac) para seleccionar múltiples proyectos
+                            </small>
+                        </div>
+
+                        <hr>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'gestionar_usuarios' %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Guardar Cambios
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información del Usuario -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-user"></i> Información Personal</h5>
+                </div>
+                <div class="card-body text-center">
+                    <div class="avatar-lg bg-primary text-white rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center" 
+                         style="width: 80px; height: 80px; font-size: 1.5rem;">
+                        {{ usuario.first_name|first|default:usuario.username|first|upper }}{{ usuario.last_name|first|upper }}
+                    </div>
+                    
+                    <h5 class="card-title">{{ usuario.get_full_name|default:usuario.username }}</h5>
+                    <p class="text-muted">{{ usuario.email|default:"Sin email" }}</p>
+                    
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="border-end">
+                                <h6 class="text-primary mb-0">{{ profile.get_role_display|default:"Sin rol" }}</h6>
+                                <small class="text-muted">Rol</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <h6 class="mb-0">
+                                {% if usuario.is_active %}
+                                    <span class="badge bg-success">Activo</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Inactivo</span>
+                                {% endif %}
+                            </h6>
+                            <small class="text-muted">Estado</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Estadísticas del Usuario -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-chart-bar"></i> Estadísticas</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-12 mb-3">
+                            <h4 class="text-primary mb-0">{{ solicitudes_activas|default:0 }}</h4>
+                            <small class="text-muted">Solicitudes Activas</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="border-end">
+                                <h6 class="text-info mb-0">{{ usuario.solicitud_set.count|default:0 }}</h6>
+                                <small class="text-muted">Total Solicitudes</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <h6 class="text-success mb-0">{{ profile.proyectos_asignados.count|default:0 }}</h6>
+                            <small class="text-muted">Proyectos</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Información Adicional -->
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-info-circle"></i> Información Adicional</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Usuario:</strong></td>
+                            <td>{{ usuario.username }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Departamento:</strong></td>
+                            <td>{{ profile.departamento|default:"No especificado" }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Teléfono:</strong></td>
+                            <td>{{ profile.telefono|default:"No especificado" }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Fecha registro:</strong></td>
+                            <td>{{ usuario.date_joined|date:"d/m/Y" }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Último acceso:</strong></td>
+                            <td>{{ usuario.last_login|date:"d/m/Y H:i"|default:"Nunca" }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

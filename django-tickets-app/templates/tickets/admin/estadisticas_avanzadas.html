@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+
+{% block title %}Estadísticas Avanzadas - Sistema de Tickets{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="fas fa-chart-bar"></i> Estadísticas Avanzadas</h1>
+            <a href="{% url 'panel_administracion' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver al Panel
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Estadísticas Generales -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <h2>{{ total_solicitudes }}</h2>
+                <p class="mb-0">Total de Solicitudes</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h2>{{ proyectos_stats|length }}</h2>
+                <p class="mb-0">Proyectos Activos</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <h2>{{ solicitudes_por_estado.Finalizada|default:0 }}</h2>
+                <p class="mb-0">Solicitudes Finalizadas</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Solicitudes por Estado -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-pie"></i> Solicitudes por Estado</h5>
+            </div>
+            <div class="card-body">
+                {% for estado, cantidad in solicitudes_por_estado.items %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>{{ estado }}</span>
+                    <span class="badge bg-secondary">{{ cantidad }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Solicitudes por Tipo -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-bar"></i> Solicitudes por Tipo</h5>
+            </div>
+            <div class="card-body">
+                {% for tipo, cantidad in solicitudes_por_tipo.items %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>{{ tipo }}</span>
+                    <span class="badge bg-primary">{{ cantidad }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estadísticas por Proyecto -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-project-diagram"></i> Estadísticas por Proyecto</h5>
+            </div>
+            <div class="card-body">
+                {% if proyectos_stats %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Proyecto</th>
+                                    <th>Total Solicitudes</th>
+                                    <th>Activas</th>
+                                    <th>Finalizadas</th>
+                                    <th>Miembros</th>
+                                    <th>% Completado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for stat in proyectos_stats %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ stat.proyecto.codigo }}</strong><br>
+                                        <small class="text-muted">{{ stat.proyecto.nombre }}</small>
+                                    </td>
+                                    <td>{{ stat.total_solicitudes }}</td>
+                                    <td>
+                                        <span class="badge bg-warning">{{ stat.solicitudes_activas }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-success">{{ stat.solicitudes_finalizadas }}</span>
+                                    </td>
+                                    <td>{{ stat.miembros_count }}</td>
+                                    <td>
+                                        {% if stat.total_solicitudes > 0 %}
+                                            {% widthratio stat.solicitudes_finalizadas stat.total_solicitudes 100 as porcentaje %}
+                                            <div class="progress" style="height: 20px;">
+                                                <div class="progress-bar" role="progressbar" style="width: {{ porcentaje }}%">
+                                                    {{ porcentaje }}%
+                                                </div>
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted">No hay proyectos activos para mostrar estadísticas.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

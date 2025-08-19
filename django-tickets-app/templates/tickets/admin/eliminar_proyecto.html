@@ -1,0 +1,331 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Eliminar Proyecto - {{ proyecto.nombre }} - Sistema de Tickets{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-trash-alt text-danger"></i> Eliminar Proyecto</h2>
+                <a href="{% url 'detalle_proyecto' proyecto.pk %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Información del Proyecto -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-project-diagram"></i> Información del Proyecto</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 text-center">
+                            <div class="avatar-lg bg-danger text-white rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center" 
+                                 style="width: 80px; height: 80px; font-size: 1.5rem;">
+                                {{ proyecto.codigo|slice:":2"|upper }}
+                            </div>
+                            <h5>{{ proyecto.nombre }}</h5>
+                            <span class="badge bg-{% if proyecto.estado == 'activo' %}success{% elif proyecto.estado == 'en_pausa' %}warning{% else %}secondary{% endif %}">
+                                {{ proyecto.get_estado_display }}
+                            </span>
+                        </div>
+                        
+                        <div class="col-md-9">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <td><strong>Código:</strong></td>
+                                            <td>{{ proyecto.codigo }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Cliente:</strong></td>
+                                            <td>{{ proyecto.cliente|default:"No especificado" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Líder:</strong></td>
+                                            <td>
+                                                {% if proyecto.lider_proyecto %}
+                                                    {{ proyecto.lider_proyecto.get_full_name|default:proyecto.lider_proyecto.username }}
+                                                {% else %}
+                                                    <span class="text-muted">Sin asignar</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Motor BD:</strong></td>
+                                            <td>{{ proyecto.get_motor_bd_display }}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <td><strong>Fecha creación:</strong></td>
+                                            <td>{{ proyecto.fecha_creacion|date:"d/m/Y" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Fecha inicio:</strong></td>
+                                            <td>{{ proyecto.fecha_inicio|date:"d/m/Y"|default:"No especificada" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Fecha fin estimada:</strong></td>
+                                            <td>{{ proyecto.fecha_fin_estimada|date:"d/m/Y"|default:"No especificada" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>BD Principal:</strong></td>
+                                            <td>{{ proyecto.base_datos_principal|default:"No especificada" }}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            {% if proyecto.descripcion %}
+                                <div class="mt-3">
+                                    <strong>Descripción:</strong>
+                                    <p class="text-muted">{{ proyecto.descripcion }}</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Estadísticas de Impacto -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-chart-bar"></i> Impacto de la Eliminación</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h4 class="text-primary">{{ proyecto.get_solicitudes_total }}</h4>
+                                    <small class="text-muted">Total Solicitudes</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h4 class="text-warning">{{ proyecto.get_solicitudes_activas }}</h4>
+                                    <small class="text-muted">Solicitudes Activas</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h4 class="text-info">{{ proyecto.miembros_equipo.count }}</h4>
+                                    <small class="text-muted">Miembros Asignados</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h4 class="text-success">{{ proyecto.configuraciones_excel.count }}</h4>
+                                    <small class="text-muted">Configuraciones Excel</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel de Eliminación -->
+        <div class="col-md-4">
+            {% if proyecto.solicitudes.exists %}
+                <!-- No se puede eliminar -->
+                <div class="card border-danger">
+                    <div class="card-header bg-danger text-white">
+                        <h5><i class="fas fa-exclamation-triangle"></i> No se puede eliminar</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-danger">
+                            <h6><i class="fas fa-ban"></i> Proyecto con dependencias</h6>
+                            <p class="mb-2">Este proyecto no puede ser eliminado porque tiene:</p>
+                            <ul class="mb-3">
+                                <li><strong>{{ proyecto.get_solicitudes_total }}</strong> solicitudes asociadas</li>
+                                {% if proyecto.get_solicitudes_activas > 0 %}
+                                    <li><strong>{{ proyecto.get_solicitudes_activas }}</strong> solicitudes activas</li>
+                                {% endif %}
+                                {% if proyecto.miembros_equipo.exists %}
+                                    <li><strong>{{ proyecto.miembros_equipo.count }}</strong> miembros asignados</li>
+                                {% endif %}
+                            </ul>
+                            <p class="mb-0">
+                                <strong>Recomendación:</strong> Inactiva el proyecto en lugar de eliminarlo para preservar la integridad de los datos.
+                            </p>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <h6><i class="fas fa-lightbulb"></i> Alternativas</h6>
+                            <ul class="mb-0">
+                                <li>Cambiar el estado del proyecto a "Finalizado" o "Cancelado"</li>
+                                <li>Desmarcar la opción "Activo" para inactivarlo</li>
+                                <li>Reasignar las solicitudes a otro proyecto</li>
+                                <li>Finalizar todas las solicitudes pendientes</li>
+                            </ul>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <a href="{% url 'editar_proyecto' proyecto.pk %}" class="btn btn-warning btn-lg">
+                                <i class="fas fa-edit"></i> Inactivar Proyecto
+                            </a>
+                            <a href="{% url 'detalle_proyecto' proyecto.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Volver al Proyecto
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <!-- Se puede eliminar -->
+                <div class="card border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h5><i class="fas fa-exclamation-triangle"></i> Confirmar Eliminación</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-warning">
+                            <h6><i class="fas fa-trash-alt"></i> ¿Estás seguro?</h6>
+                            <p>Esta acción eliminará permanentemente el proyecto y:</p>
+                            <ul class="mb-3">
+                                <li>No se puede deshacer</li>
+                                <li>Se perderán todas las configuraciones</li>
+                                <li>Los miembros perderán la asignación</li>
+                                <li>Las configuraciones Excel se eliminarán</li>
+                            </ul>
+                            <p class="mb-0">
+                                <strong>Nota:</strong> El proyecto no tiene solicitudes asociadas, por lo que es seguro eliminarlo.
+                            </p>
+                        </div>
+
+                        <div class="alert alert-success">
+                            <h6><i class="fas fa-check-circle"></i> Proyecto sin dependencias</h6>
+                            <p class="mb-0">
+                                Este proyecto puede ser eliminado de forma segura ya que no tiene solicitudes asociadas.
+                            </p>
+                        </div>
+
+                        <form method="post" class="mt-3">
+                            {% csrf_token %}
+                            
+                            <div class="form-group mb-3">
+                                <label class="form-label">Confirma la eliminación:</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="confirmar" required>
+                                    <label class="form-check-label" for="confirmar">
+                                        Confirmo que deseo eliminar permanentemente este proyecto
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="confirmacion-nombre" class="form-label">
+                                    Escribe el nombre del proyecto para confirmar:
+                                </label>
+                                <input type="text" class="form-control" id="confirmacion-nombre" 
+                                       placeholder="{{ proyecto.nombre }}" required>
+                                <small class="form-text text-muted">
+                                    Debe coincidir exactamente: <strong>{{ proyecto.nombre }}</strong>
+                                </small>
+                            </div>
+
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-danger btn-lg" id="btn-eliminar" disabled>
+                                    <i class="fas fa-trash-alt"></i> Eliminar Proyecto Permanentemente
+                                </button>
+                                <a href="{% url 'detalle_proyecto' proyecto.pk %}" class="btn btn-secondary">
+                                    <i class="fas fa-times"></i> Cancelar
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            {% endif %}
+
+            <!-- Miembros del Proyecto -->
+            {% if proyecto.miembros_equipo.exists %}
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5><i class="fas fa-users"></i> Miembros Afectados</h5>
+                </div>
+                <div class="card-body">
+                    <div style="max-height: 200px; overflow-y: auto;">
+                        {% for miembro in proyecto.miembros_equipo.all %}
+                            <div class="d-flex align-items-center mb-2 p-2 bg-light rounded">
+                                <div class="avatar-sm bg-primary text-white rounded-circle me-2 d-flex align-items-center justify-content-center" 
+                                     style="width: 32px; height: 32px; font-size: 0.8rem;">
+                                    {{ miembro.first_name|first|default:miembro.user.username|first|upper }}{{ miembro.last_name|first|upper }}
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="fw-bold small">{{ miembro.get_full_name|default:miembro.user.username }}</div>
+                                    {% if miembro.profile %}
+                                        <small class="text-muted">{{ miembro.profile.get_role_display }}</small>
+                                    {% endif %}
+                                </div>
+                                {% if not miembro.is_active %}
+                                    <span class="badge bg-danger badge-sm">Inactivo</span>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle"></i>
+                        Estos usuarios perderán la asignación a este proyecto
+                    </small>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const confirmarCheckbox = document.getElementById('confirmar');
+    const confirmacionNombre = document.getElementById('confirmacion-nombre');
+    const btnEliminar = document.getElementById('btn-eliminar');
+    const nombreProyecto = '{{ proyecto.nombre }}';
+    
+    if (form && confirmarCheckbox && confirmacionNombre && btnEliminar) {
+        function validarFormulario() {
+            const checkboxMarcado = confirmarCheckbox.checked;
+            const nombreCorrecto = confirmacionNombre.value === nombreProyecto;
+            
+            btnEliminar.disabled = !(checkboxMarcado && nombreCorrecto);
+            
+            if (nombreCorrecto) {
+                confirmacionNombre.classList.remove('is-invalid');
+                confirmacionNombre.classList.add('is-valid');
+            } else if (confirmacionNombre.value.length > 0) {
+                confirmacionNombre.classList.remove('is-valid');
+                confirmacionNombre.classList.add('is-invalid');
+            } else {
+                confirmacionNombre.classList.remove('is-valid', 'is-invalid');
+            }
+        }
+        
+        confirmarCheckbox.addEventListener('change', validarFormulario);
+        confirmacionNombre.addEventListener('input', validarFormulario);
+        
+        // Confirmación adicional al enviar
+        form.addEventListener('submit', function(e) {
+            if (!confirm(`¿Estás ABSOLUTAMENTE SEGURO de que deseas eliminar el proyecto "${nombreProyecto}"?\n\nEsta acción NO se puede deshacer.`)) {
+                e.preventDefault();
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

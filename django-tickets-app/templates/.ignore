@@ -1,0 +1,13 @@
+# Ignorar carpeta media pero permitir el .gitkeep
+/media/*
+!/media/.gitkeep
+
+# Ignorar archivos por extensión
+*.xlsx
+*.docx
+*.zip
+
+# Archivos de sistema (opcional)
+*.pyc
+__pycache__/
+db.sqlite3

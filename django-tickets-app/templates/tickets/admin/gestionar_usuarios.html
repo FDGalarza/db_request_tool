@@ -1,0 +1,175 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestión de Usuarios - Sistema de Tickets{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="fas fa-users"></i> Gestión de Usuarios</h1>
+            <a href="{% url 'crear_usuario' %}" class="btn btn-success">
+                <i class="fas fa-user-plus"></i> Crear Usuario
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mb-3">
+    <div class="col-md-6">
+        <form method="get" class="d-flex">
+            <select name="rol" class="form-select me-2">
+                <option value="">Todos los roles</option>
+                {% for rol_key, rol_value in roles %}
+                <option value="{{ rol_key }}" {% if rol_filtro == rol_key %}selected{% endif %}>
+                    {{ rol_value }}
+                </option>
+                {% endfor %}
+            </select>
+            <select name="activo" class="form-select me-2">
+                <option value="">Todos los estados</option>
+                <option value="true" {% if activo_filtro == 'true' %}selected{% endif %}>Activos</option>
+                <option value="false" {% if activo_filtro == 'false' %}selected{% endif %}>Inactivos</option>
+            </select>
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+        </form>
+    </div>
+</div>
+
+<!-- Lista de Usuarios -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                {% if usuarios %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Usuario</th>
+                                    <th>Nombre Completo</th>
+                                    <th>Email</th>
+                                    <th>Rol</th>
+                                    <th>Departamento</th>
+                                    <th>Estado</th>
+                                    <th>Último Acceso</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for usuario in usuarios %}
+                                <tr class="{% if not usuario.is_active %}table-secondary{% endif %}">
+                                    <td>
+                                        <strong>{{ usuario.username }}</strong>
+                                        {% if not usuario.is_active %}
+                                            <span class="badge bg-secondary ms-1">Inactivo</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ usuario.get_full_name|default:"Sin especificar" }}</td>
+                                    <td>{{ usuario.email|default:"Sin email" }}</td>
+                                    <td>
+                                        {% if usuario.profile %}
+                                            <span class="badge bg-{% if usuario.profile.role == 'admin' %}danger{% elif usuario.profile.role == 'db' %}info{% elif usuario.profile.role == 'devops' %}warning{% elif usuario.profile.role == 'lider' %}success{% else %}secondary{% endif %}">
+                                                {{ usuario.profile.get_role_display }}
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-dark">Sin perfil</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if usuario.profile %}
+                                            {{ usuario.profile.departamento|default:"Sin especificar" }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if usuario.is_active %}
+                                            <span class="badge bg-success">Activo</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Inactivo</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if usuario.last_login %}
+                                            {{ usuario.last_login|date:"d/m/Y H:i" }}
+                                        {% else %}
+                                            <span class="text-muted">Nunca</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'editar_usuario' usuario.pk %}" class="btn btn-outline-warning" title="Editar">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            {% if usuario != user %}
+                                                <a href="{% url 'inactivar_usuario' usuario.pk %}" 
+                                                   class="btn btn-outline-{% if usuario.is_active %}secondary{% else %}success{% endif %}" 
+                                                   title="{% if usuario.is_active %}Inactivar{% else %}Activar{% endif %}">
+                                                    <i class="fas fa-{% if usuario.is_active %}user-slash{% else %}user-check{% endif %}"></i>
+                                                </a>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación -->
+                    {% if usuarios.has_other_pages %}
+                    <nav aria-label="Paginación de usuarios">
+                        <ul class="pagination justify-content-center">
+                            {% if usuarios.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ usuarios.previous_page_number }}{% if rol_filtro %}&rol={{ rol_filtro }}{% endif %}{% if activo_filtro %}&activo={{ activo_filtro }}{% endif %}">Anterior</a>
+                                </li>
+                            {% endif %}
+                            
+                            {% for num in usuarios.paginator.page_range %}
+                                {% if usuarios.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ num }}{% if rol_filtro %}&rol={{ rol_filtro }}{% endif %}{% if activo_filtro %}&activo={{ activo_filtro }}{% endif %}">{{ num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if usuarios.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ usuarios.next_page_number }}{% if rol_filtro %}&rol={{ rol_filtro }}{% endif %}{% if activo_filtro %}&activo={{ activo_filtro }}{% endif %}">Siguiente</a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No hay usuarios registrados</h5>
+                        <p class="text-muted">Comienza creando el primer usuario</p>
+                        <a href="{% url 'crear_usuario' %}" class="btn btn-success">
+                            <i class="fas fa-user-plus"></i> Crear Primer Usuario
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Información adicional -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            <strong>Información:</strong> Los usuarios inactivos no pueden iniciar sesión en el sistema, pero se mantienen sus datos históricos y solicitudes asociadas.
+        </div>
+    </div>
+</div>
+{% endblock %}

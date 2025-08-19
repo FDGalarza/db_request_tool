@@ -1,7 +1,74 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.core.exceptions import ValidationError
 import json
+
+class Proyecto(models.Model):
+    """Modelo para gestionar proyectos y separar las solicitudes por proyecto"""
+    nombre = models.CharField(max_length=100, unique=True, verbose_name="Nombre del Proyecto")
+    codigo = models.CharField(max_length=20, unique=True, verbose_name="Código del Proyecto", 
+                             help_text="Código único para identificar el proyecto (ej: PROJ001)")
+    descripcion = models.TextField(blank=True, verbose_name="Descripción")
+    cliente = models.CharField(max_length=100, blank=True, verbose_name="Cliente")
+    lider_proyecto = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                      related_name='proyectos_liderados', verbose_name="Líder del Proyecto")
+    
+    # Configuraciones del proyecto
+    base_datos_principal = models.CharField(max_length=100, blank=True, verbose_name="Base de Datos Principal")
+    motor_bd = models.CharField(max_length=50, choices=[
+        ('mysql', 'MySQL'),
+        ('postgresql', 'PostgreSQL'),
+        ('sqlserver', 'SQL Server'),
+        ('oracle', 'Oracle'),
+        ('sqlite', 'SQLite')
+    ], default='mysql', verbose_name="Motor de Base de Datos")
+    
+    # Estados del proyecto
+    ESTADOS_PROYECTO = [
+        ('activo', 'Activo'),
+        ('en_pausa', 'En Pausa'),
+        ('finalizado', 'Finalizado'),
+        ('cancelado', 'Cancelado'),
+    ]
+    estado = models.CharField(max_length=20, choices=ESTADOS_PROYECTO, default='activo', verbose_name="Estado")
+    
+    # Metadatos
+    fecha_inicio = models.DateField(null=True, blank=True, verbose_name="Fecha de Inicio")
+    fecha_fin_estimada = models.DateField(null=True, blank=True, verbose_name="Fecha de Fin Estimada")
+    fecha_creacion = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Creación")
+    fecha_actualizacion = models.DateTimeField(auto_now=True, verbose_name="Última Actualización")
+    
+    # Configuraciones futuras (JSON para flexibilidad)
+    configuraciones = models.JSONField(default=dict, blank=True, verbose_name="Configuraciones Adicionales",
+                                     help_text="Configuraciones específicas del proyecto en formato JSON")
+    
+    activo = models.BooleanField(default=True, verbose_name="Activo")
+    
+    class Meta:
+        verbose_name = "Proyecto"
+        verbose_name_plural = "Proyectos"
+        ordering = ['nombre']
+    
+    def __str__(self):
+        return f"{self.codigo} - {self.nombre}"
+    
+    def clean(self):
+        if self.fecha_fin_estimada and self.fecha_inicio:
+            if self.fecha_fin_estimada < self.fecha_inicio:
+                raise ValidationError("La fecha de fin no puede ser anterior a la fecha de inicio")
+    
+    def get_solicitudes_activas(self):
+        """Retorna el número de solicitudes activas del proyecto"""
+        return self.solicitudes.exclude(estado__in=['finalizada', 'cancelada']).count()
+    
+    def get_solicitudes_total(self):
+        """Retorna el número total de solicitudes del proyecto"""
+        return self.solicitudes.count()
+    
+    def get_miembros_equipo(self):
+        """Retorna los miembros del equipo asignados al proyecto"""
+        return User.objects.filter(profile__proyectos_asignados=self)
 
 class UserProfile(models.Model):
     ROLES = [
@@ -12,17 +79,62 @@ class UserProfile(models.Model):
         ('lider', 'Líder de Proyecto'),
     ]
     
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     role = models.CharField(max_length=10, choices=ROLES, default='dev')
+    
+    # Proyectos asignados al usuario
+    proyectos_asignados = models.ManyToManyField(Proyecto, blank=True, 
+                                               related_name='miembros_equipo',
+                                               verbose_name="Proyectos Asignados")
+    
+    # Campos adicionales
+    departamento = models.CharField(max_length=100, blank=True, verbose_name="Departamento")
+    telefono = models.CharField(max_length=20, blank=True, verbose_name="Teléfono")
+    activo = models.BooleanField(default=True, verbose_name="Activo")
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
         return f"{self.user.username} - {self.get_role_display()}"
+    
+    def puede_gestionar_proyecto(self, proyecto):
+        """Verifica si el usuario puede gestionar un proyecto específico"""
+        if self.role == 'admin':
+            return True
+        if self.role == 'lider' and proyecto.lider_proyecto == self.user:
+            return True
+        return proyecto in self.proyectos_asignados.all()
+    
+    def get_proyectos_disponibles(self):
+        """Retorna los proyectos que el usuario puede ver/gestionar"""
+        if self.role == 'admin':
+            return Proyecto.objects.filter(activo=True)
+        elif self.role == 'lider':
+            # Líder puede ver proyectos que lidera + proyectos asignados
+            return Proyecto.objects.filter(
+                models.Q(lider_proyecto=self.user) | 
+                models.Q(miembros_equipo=self.user),
+                activo=True
+            ).distinct()
+        else:
+            return self.proyectos_asignados.filter(activo=True)
 
 class ConfiguracionEstructuraExcel(models.Model):
-    """Configuración de estructuras esperadas para archivos Excel"""
-    tipo_solicitud = models.CharField(max_length=50, unique=True)
+    """Configuración de estructuras esperadas para archivos Excel por proyecto"""
+    proyecto = models.ForeignKey(Proyecto, on_delete=models.CASCADE, 
+                                related_name='configuraciones_excel',
+                                verbose_name="Proyecto", null=True, blank=True)
+    tipo_solicitud = models.CharField(max_length=50)
     estructura_json = models.TextField(help_text="JSON con la estructura esperada")
     descripcion = models.TextField(blank=True)
+    nombre = models.CharField(max_length=100, verbose_name="Nombre de la Configuración", default="Default")
+    activo = models.BooleanField(default=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Configuración de Estructura Excel"
+        verbose_name_plural = "Configuraciones de Estructura Excel"
+        unique_together = ['proyecto', 'tipo_solicitud', 'nombre']
     
     def get_estructura(self):
         try:
@@ -31,7 +143,8 @@ class ConfiguracionEstructuraExcel(models.Model):
             return {}
     
     def __str__(self):
-        return f"Estructura para {self.tipo_solicitud}"
+        proyecto_str = f"{self.proyecto.codigo} - " if self.proyecto else "Global - "
+        return f"{proyecto_str}{self.tipo_solicitud} - {self.nombre}"
 
 class Solicitud(models.Model):
     TIPOS_SOLICITUD = [
@@ -76,6 +189,10 @@ class Solicitud(models.Model):
     TIPOS_DEVOPS = ['pull_request', 'despliegue']
     TIPOS_COMPILACION = ['compilar_objetos', 'compilar_scripts_qa', 'compilar_scripts_pu']
     
+    # NUEVO CAMPO: Proyecto al que pertenece la solicitud
+    proyecto = models.ForeignKey(Proyecto, on_delete=models.CASCADE, 
+                                related_name='solicitudes', verbose_name="Proyecto",  null=True, blank=True)
+    
     tipo_solicitud = models.CharField(max_length=30, choices=TIPOS_SOLICITUD)
     tipo_archivo = models.CharField(max_length=10, choices=TIPOS_ARCHIVO, blank=True, null=True)
     archivo_adjunto = models.FileField(upload_to='solicitudes/', blank=True, null=True)
@@ -85,7 +202,7 @@ class Solicitud(models.Model):
     fecha_modificacion = models.DateTimeField(auto_now=True)
     usuario = models.ForeignKey(User, on_delete=models.CASCADE)
     
-    # Nuevos campos
+    # Campos existentes
     base_datos_aplicacion = models.CharField(max_length=100, help_text="Base de datos o aplicación donde se aplicará")
     correo_notificacion = models.EmailField(help_text="Correo para notificaciones")
     ambientes_ejecucion = models.JSONField(default=list, blank=True, help_text="Ambientes donde ejecutar (para scripts)")
@@ -106,8 +223,20 @@ class Solicitud(models.Model):
     usuario_creado = models.CharField(max_length=100, blank=True, null=True)
     password_generado = models.CharField(max_length=100, blank=True, null=True)
     
+    def save(self, *args, **kwargs):
+        # Auto-asignar líder de proyecto si no está asignado
+        if not self.lider_proyecto and self.proyecto and self.proyecto.lider_proyecto:
+            self.lider_proyecto = self.proyecto.lider_proyecto
+        
+        # Auto-asignar base de datos principal del proyecto si no está especificada
+        if not self.base_datos_aplicacion and self.proyecto and self.proyecto.base_datos_principal:
+            self.base_datos_aplicacion = self.proyecto.base_datos_principal
+            
+        super().save(*args, **kwargs)
+    
     def __str__(self):
-        return f"{self.get_tipo_solicitud_display()} - {self.usuario.username} - {self.estado}"
+        proyecto_codigo = self.proyecto.codigo if self.proyecto else "SIN-PROJ"
+        return f"#{self.id} - {self.get_tipo_solicitud_display()} - {self.usuario.username} - {proyecto_codigo}"
     
     def puede_editar(self, user):
         """Verifica si un usuario puede editar esta solicitud"""
@@ -115,6 +244,10 @@ class Solicitud(models.Model):
         
         # Admin puede editar todo
         if user_profile.role == 'admin':
+            return True
+        
+        # Verificar si el usuario puede gestionar el proyecto
+        if self.proyecto and user_profile.puede_gestionar_proyecto(self.proyecto):
             return True
             
         # Solo el propietario puede editar si está en estado registrada o revision
@@ -129,6 +262,10 @@ class Solicitud(models.Model):
 
         # Admin puede gestionar todo
         if user_profile.role == 'admin':
+            return True
+
+        # Verificar si el usuario puede gestionar el proyecto
+        if self.proyecto and user_profile.puede_gestionar_proyecto(self.proyecto):
             return True
 
         # Ingeniero DB puede gestionar solicitudes de tipo BD (de cualquier usuario)
@@ -149,10 +286,62 @@ class Solicitud(models.Model):
             return True
 
         return False
-
     
+    def puede_generar_script(self, user):
+        """
+        Verifica si un usuario puede generar scripts SQL
+        """
+        user_profile = UserProfile.objects.get_or_create(user=user)[0]
+        
+        # Solo ingenieros DB y admin pueden generar scripts
+        if user_profile.role not in ['admin', 'db']:
+            return False
+        
+        # No permitir generar script si está en revisión
+        if self.estado == 'pendiente_aprobacion_lider':
+            return False
+        
+        return True
+    
+    def puede_ver_script(self, user):
+        """Verifica si un usuario puede ver el script SQL generado"""
+        user_profile = UserProfile.objects.get_or_create(user=user)[0]
+        
+        # Ingenieros de desarrollo NO pueden ver scripts
+        if user_profile.role == 'dev':
+            if self.estado == 'finalizada':
+                 return user_profile.role in ['admin', 'db', 'devops', 'dev']
+            return False
+            
+        return user_profile.role in ['admin', 'db', 'devops']
+    
+    def puede_descargar_script(self, user):
+        """Verifica si un usuario puede descargar el script SQL"""
+        user_profile = UserProfile.objects.get_or_create(user=user)[0]
+        
+        # Ingenieros de desarrollo NO pueden descargar scripts
+        if user_profile.role == 'dev':
+            if self.estado == 'finalizada':
+                 return user_profile.role in ['admin', 'db', 'devops', 'dev']
+            return False
+            
+        return user_profile.role in ['admin', 'db', 'devops']
+
     def estados_permitidos_para_usuario(self, user):
         user_profile = UserProfile.objects.get_or_create(user=user)[0]
+        perfil = getattr(user, "userprofile", None)
+       
+        if not user_profile:
+            print("Sin perfil")
+            return []
+
+        # 🔹 Caso especial para devs
+        if user_profile.role == "dev":
+            if self.usuario == user and self.estado == "registrada":
+                return ["cancelada"]  # único estado permitido
+            else:
+                return []  # en cualquier otro caso no puede cambiar estado
+
 
         # Admin puede cambiar a cualquier estado
         if user_profile.role == 'admin':
@@ -170,10 +359,9 @@ class Solicitud(models.Model):
         # Solo propietarios pueden cancelar si no tienen otros permisos
         if self.usuario == user and self.estado == 'registrada':
             return ['cancelada']
-
+        
         return []
 
-    
     def requiere_aprobacion_lider(self):
         """Verifica si la solicitud requiere aprobación de líder"""
         return self.tipo_solicitud == 'crear_usuarios'

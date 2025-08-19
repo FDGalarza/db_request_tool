@@ -1,77 +1,118 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
-from .models import Solicitud, UserProfile, Comentario
+from .models import Solicitud, UserProfile, Comentario, Proyecto
 
-class CustomUserCreationForm(UserCreationForm):
-    email = forms.EmailField(required=True)
-    role = forms.ChoiceField(choices=UserProfile.ROLES, required=True)
-    
+# ELIMINAMOS CustomUserCreationForm - Ya no se permite registro público
+
+class ProyectoForm(forms.ModelForm):
+    """Formulario para crear y editar proyectos"""
     class Meta:
-        model = User
-        fields = ("username", "email", "password1", "password2")
+        model = Proyecto
+        fields = [
+            'nombre', 'codigo', 'descripcion', 'cliente', 'lider_proyecto',
+            'base_datos_principal', 'motor_bd', 'estado', 'fecha_inicio', 
+            'fecha_fin_estimada', 'activo'
+        ]
+        widgets = {
+            'descripcion': forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}),
+            'fecha_inicio': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'fecha_fin_estimada': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'nombre': forms.TextInput(attrs={'class': 'form-control'}),
+            'codigo': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: PROJ001'}),
+            'cliente': forms.TextInput(attrs={'class': 'form-control'}),
+            'base_datos_principal': forms.TextInput(attrs={'class': 'form-control'}),
+            'motor_bd': forms.Select(attrs={'class': 'form-select'}),
+            'estado': forms.Select(attrs={'class': 'form-select'}),
+            'lider_proyecto': forms.Select(attrs={'class': 'form-select'}),
+        }
     
-    def save(self, commit=True):
-        user = super().save(commit=False)
-        user.email = self.cleaned_data["email"]
-        if commit:
-            user.save()
-            UserProfile.objects.create(
-                user=user,
-                role=self.cleaned_data["role"]
-            )
-        return user
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Filtrar solo usuarios que pueden ser líderes de proyecto
+        self.fields['lider_proyecto'].queryset = User.objects.filter(
+            profile__role__in=['admin', 'lider']
+        )
+        self.fields['lider_proyecto'].empty_label = "Seleccionar líder..."
 
 class SolicitudForm(forms.ModelForm):
     # Campo para seleccionar ambientes (para scripts)
     ambientes_ejecucion = forms.MultipleChoiceField(
         choices=Solicitud.AMBIENTES,
-        widget=forms.CheckboxSelectMultiple,
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
         required=False,
+        label="Ambientes de Ejecución",
         help_text="Selecciona los ambientes donde se debe ejecutar (solo para compilación de scripts)"
     )
     
     # Campo para seleccionar líder de proyecto
     lider_proyecto = forms.ModelChoiceField(
-        queryset=User.objects.filter(userprofile__role='lider'),
+        queryset=User.objects.filter(profile__role__in=['lider', 'admin']),
         required=False,
         empty_label="Seleccionar líder...",
-        help_text="Requerido para creación de usuarios"
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        label="Líder de Proyecto",
+        help_text="Requerido para creación de usuarios y asignación de permisos"
     )
     
     class Meta:
         model = Solicitud
         fields = [
-            'tipo_solicitud', 'base_datos_aplicacion', 'correo_notificacion',
+            'proyecto', 'tipo_solicitud', 'base_datos_aplicacion', 'correo_notificacion',
             'tipo_archivo', 'archivo_adjunto', 'descripcion', 
             'url_commit', 'nombre_branch', 'entorno', 'ambientes_ejecucion', 'lider_proyecto'
         ]
         widgets = {
             'descripcion': forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}),
+            'proyecto': forms.Select(attrs={'class': 'form-control'}),
             'tipo_solicitud': forms.Select(attrs={'class': 'form-control'}),
-            'base_datos_aplicacion': forms.TextInput(attrs={'class': 'form-control'}),
+            'base_datos_aplicacion': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: sistema_ventas, app_inventario'}),
             'correo_notificacion': forms.EmailInput(attrs={'class': 'form-control'}),
             'tipo_archivo': forms.Select(attrs={'class': 'form-control'}),
             'archivo_adjunto': forms.FileInput(attrs={'class': 'form-control'}),
             'url_commit': forms.URLInput(attrs={'class': 'form-control'}),
             'nombre_branch': forms.TextInput(attrs={'class': 'form-control'}),
             'entorno': forms.TextInput(attrs={'class': 'form-control'}),
-            'lider_proyecto': forms.Select(attrs={'class': 'form-control'}),
+        }
+        labels = {
+            'proyecto': 'Proyecto *',  # REQUERIDO AHORA
+            'tipo_solicitud': 'Tipo de Solicitud',
+            'base_datos_aplicacion': 'Base de Datos/Aplicación',
+            'correo_notificacion': 'Correo de Notificación',
+            'tipo_archivo': 'Tipo de Archivo',
+            'archivo_adjunto': 'Archivo Adjunto',
+            'descripcion': 'Descripción',
+            'url_commit': 'URL del Commit',
+            'nombre_branch': 'Nombre del Branch',
+            'entorno': 'Entorno',
         }
     
     def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
+        
+        # PROYECTO ES OBLIGATORIO AHORA
+        self.fields['proyecto'].required = True
+        
+        # Filtrar proyectos según el rol del usuario
+        if user and hasattr(user, 'profile'):
+            proyectos_disponibles = user.profile.get_proyectos_disponibles()
+            self.fields['proyecto'].queryset = proyectos_disponibles
+            
+            # Si no hay proyectos disponibles, mostrar mensaje
+            if not proyectos_disponibles.exists():
+                self.fields['proyecto'].empty_label = "No tienes proyectos asignados"
+                self.fields['proyecto'].widget.attrs['disabled'] = True
+        
+        # Pre-llenar correo de notificación con el email del usuario
+        if user and user.email and not self.instance.pk:
+            self.fields['correo_notificacion'].initial = user.email
+        
         # Hacer campos condicionales según el tipo de solicitud
         self.fields['url_commit'].required = False
         self.fields['nombre_branch'].required = False
         self.fields['entorno'].required = False
         self.fields['lider_proyecto'].required = False
-        
-        # Configurar el correo por defecto del usuario actual
-        if 'initial' in kwargs and 'user' in kwargs['initial']:
-            user = kwargs['initial']['user']
-            if user.email:
-                self.fields['correo_notificacion'].initial = user.email
     
     def clean(self):
         cleaned_data = super().clean()
@@ -80,45 +121,66 @@ class SolicitudForm(forms.ModelForm):
         tipo_archivo = cleaned_data.get('tipo_archivo')
         lider_proyecto = cleaned_data.get('lider_proyecto')
         ambientes_ejecucion = cleaned_data.get('ambientes_ejecucion')
+        proyecto = cleaned_data.get('proyecto')
         
-        # Validar que para creación de usuarios y asignación pmisos se seleccione un líder
+        # VALIDAR QUE SE SELECCIONE UN PROYECTO
+        if not proyecto:
+            raise forms.ValidationError("Debe seleccionar un proyecto para crear la solicitud.")
+        
+        # Validar que para creación de usuarios y asignación de permisos se seleccione un líder
         if tipo_solicitud in ['crear_usuarios', 'asignar_permisos'] and not lider_proyecto:
-            raise forms.ValidationError("Debe seleccionar un líder de proyecto para la solicitud.")
+            raise forms.ValidationError("Debe seleccionar un líder de proyecto para solicitudes de creación de usuarios y asignación de permisos.")
         
         # Validar que para compilación de objetos se suba archivo SQL
-        if tipo_solicitud == 'compilar_objetos' and archivo_adjunto and tipo_archivo != 'sql':
-            raise forms.ValidationError("Para compilación de objetos debe subir un archivo SQL.")
+        if tipo_solicitud == 'compilar_objetos':
+            if not archivo_adjunto:
+                raise forms.ValidationError("Para compilación de objetos debe subir un archivo.")
+            if tipo_archivo != 'sql':
+                raise forms.ValidationError("Para compilación de objetos debe subir un archivo SQL.")
         
-        # Validar ambientes para scripts
+        # Validar ambientes para compilación de scripts
         if tipo_solicitud in ['compilar_scripts_qa', 'compilar_scripts_pu'] and not ambientes_ejecucion:
             raise forms.ValidationError("Debe seleccionar al menos un ambiente para la compilación de scripts.")
+        
+        # Validar campos requeridos para Pull Request/Despliegue
+        if tipo_solicitud in ['pull_request', 'despliegue']:
+            if not cleaned_data.get('url_commit'):
+                raise forms.ValidationError("URL del commit es requerida para solicitudes de Pull Request y Despliegue.")
+            if not cleaned_data.get('nombre_branch'):
+                raise forms.ValidationError("Nombre del branch es requerido para solicitudes de Pull Request y Despliegue.")
         
         return cleaned_data
 
 class EditarSolicitudForm(forms.ModelForm):
+    """Formulario para editar solicitudes (solo estado registrada)"""
+    
     ambientes_ejecucion = forms.MultipleChoiceField(
         choices=Solicitud.AMBIENTES,
-        widget=forms.CheckboxSelectMultiple,
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
         required=False,
+        label="Ambientes de Ejecución",
         help_text="Selecciona los ambientes donde se debe ejecutar (solo para compilación de scripts)"
     )
     
     lider_proyecto = forms.ModelChoiceField(
-        queryset=User.objects.filter(userprofile__role='lider'),
+        queryset=User.objects.filter(profile__role__in=['lider', 'admin']),
         required=False,
         empty_label="Seleccionar líder...",
-        help_text="Requerido para creación de usuarios"
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        label="Líder de Proyecto",
+        help_text="Requerido para creación de usuarios y asignación de permisos"
     )
     
     class Meta:
         model = Solicitud
         fields = [
-            'tipo_solicitud', 'base_datos_aplicacion', 'correo_notificacion',
+            'proyecto', 'tipo_solicitud', 'base_datos_aplicacion', 'correo_notificacion',
             'tipo_archivo', 'archivo_adjunto', 'descripcion', 
             'url_commit', 'nombre_branch', 'entorno', 'ambientes_ejecucion', 'lider_proyecto'
         ]
         widgets = {
             'descripcion': forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}),
+            'proyecto': forms.Select(attrs={'class': 'form-control'}),
             'tipo_solicitud': forms.Select(attrs={'class': 'form-control'}),
             'base_datos_aplicacion': forms.TextInput(attrs={'class': 'form-control'}),
             'correo_notificacion': forms.EmailInput(attrs={'class': 'form-control'}),
@@ -127,11 +189,20 @@ class EditarSolicitudForm(forms.ModelForm):
             'url_commit': forms.URLInput(attrs={'class': 'form-control'}),
             'nombre_branch': forms.TextInput(attrs={'class': 'form-control'}),
             'entorno': forms.TextInput(attrs={'class': 'form-control'}),
-            'lider_proyecto': forms.Select(attrs={'class': 'form-control'}),
         }
     
     def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
+        
+        # PROYECTO ES OBLIGATORIO
+        self.fields['proyecto'].required = True
+        
+        # Filtrar proyectos según el rol del usuario
+        if user and hasattr(user, 'profile'):
+            proyectos_disponibles = user.profile.get_proyectos_disponibles()
+            self.fields['proyecto'].queryset = proyectos_disponibles
+        
         # Hacer campos condicionales según el tipo de solicitud
         self.fields['url_commit'].required = False
         self.fields['nombre_branch'].required = False
@@ -146,26 +217,192 @@ class ComentarioForm(forms.ModelForm):
         model = Comentario
         fields = ['texto']
         widgets = {
-            'texto': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+            'texto': forms.Textarea(attrs={
+                'rows': 4, 
+                'class': 'form-control',
+                'placeholder': 'Escriba su comentario aquí...'
+            }),
+        }
+        labels = {
+            'texto': 'Comentario'
         }
 
 class CambiarEstadoForm(forms.Form):
     ESTADOS = Solicitud.ESTADOS
     
-    nuevo_estado = forms.ChoiceField(choices=ESTADOS, widget=forms.Select(attrs={'class': 'form-control'}))
+    nuevo_estado = forms.ChoiceField(
+        choices=ESTADOS, 
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        label="Nuevo Estado"
+    )
     comentario = forms.CharField(
-        widget=forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
-        required=False
+        widget=forms.Textarea(attrs={
+            'rows': 3, 
+            'class': 'form-control',
+            'placeholder': 'Comentario sobre el cambio de estado (opcional)...'
+        }),
+        required=False,
+        label="Comentario"
     )
 
 class ValidarEstructuraForm(forms.Form):
-    """Formulario para validar estructura de archivos Excel"""
+    """Formulario para validar estructura de archivos Excel antes de generar script"""
     archivo = forms.FileField(
-        widget=forms.FileInput(attrs={'class': 'form-control', 'accept': '.xlsx,.xls'}),
+        widget=forms.FileInput(attrs={
+            'class': 'form-control', 
+            'accept': '.xlsx,.xls'
+        }),
+        label="Archivo Excel",
         help_text="Selecciona el archivo Excel para validar su estructura"
     )
     tipo_solicitud = forms.ChoiceField(
         choices=Solicitud.TIPOS_SOLICITUD,
         widget=forms.Select(attrs={'class': 'form-control'}),
+        label="Tipo de Solicitud",
         help_text="Tipo de solicitud para validar la estructura correspondiente"
+    )
+
+class AsignarMiembrosProyectoForm(forms.Form):
+    """Formulario para asignar miembros a un proyecto"""
+    miembros = forms.ModelMultipleChoiceField(
+        queryset=User.objects.all(),
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
+        required=False,
+        label="Miembros del equipo"
+    )
+    
+    def __init__(self, *args, **kwargs):
+        proyecto = kwargs.pop('proyecto', None)
+        super().__init__(*args, **kwargs)
+        
+        # Filtrar usuarios activos con perfil
+        self.fields['miembros'].queryset = User.objects.filter(
+            profile__activo=True,
+            is_active=True
+        ).exclude(profile__role='admin')  # Admin no necesita ser asignado
+        
+        # Pre-seleccionar miembros actuales si estamos editando
+        if proyecto:
+            miembros_actuales = User.objects.filter(profile__proyectos_asignados=proyecto)
+            self.fields['miembros'].initial = miembros_actuales
+
+class UserProfileForm(forms.ModelForm):
+    """Formulario para editar perfiles de usuario"""
+    class Meta:
+        model = UserProfile
+        fields = ['role', 'departamento', 'telefono', 'activo']
+        widgets = {
+            'role': forms.Select(attrs={'class': 'form-select'}),
+            'departamento': forms.TextInput(attrs={'class': 'form-control'}),
+            'telefono': forms.TextInput(attrs={'class': 'form-control'}),
+            'activo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+        labels = {
+            'role': 'Rol',
+            'departamento': 'Departamento',
+            'telefono': 'Teléfono',
+            'activo': 'Activo'
+        }
+
+# NUEVO: Formulario para crear usuarios (solo admin)
+class CrearUsuarioForm(forms.ModelForm):
+    """Formulario para crear usuarios - Solo para administradores"""
+    password1 = forms.CharField(
+        label='Contraseña',
+        widget=forms.PasswordInput(attrs={'class': 'form-control'}),
+        help_text='La contraseña debe tener al menos 8 caracteres.'
+    )
+    password2 = forms.CharField(
+        label='Confirmar contraseña',
+        widget=forms.PasswordInput(attrs={'class': 'form-control'}),
+        help_text='Ingresa la misma contraseña para verificación.'
+    )
+    role = forms.ChoiceField(
+        choices=UserProfile.ROLES,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Rol del usuario'
+    )
+    departamento = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        label='Departamento'
+    )
+    telefono = forms.CharField(
+        max_length=20,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        label='Teléfono'
+    )
+    
+    class Meta:
+        model = User
+        fields = ['username', 'first_name', 'last_name', 'email']
+        widgets = {
+            'username': forms.TextInput(attrs={'class': 'form-control'}),
+            'first_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'last_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
+        }
+        labels = {
+            'username': 'Nombre de usuario',
+            'first_name': 'Nombre',
+            'last_name': 'Apellido',
+            'email': 'Correo electrónico',
+        }
+    
+    def clean_password2(self):
+        password1 = self.cleaned_data.get("password1")
+        password2 = self.cleaned_data.get("password2")
+        if password1 and password2 and password1 != password2:
+            raise forms.ValidationError("Las contraseñas no coinciden.")
+        return password2
+    
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if User.objects.filter(username=username).exists():
+            raise forms.ValidationError("Este nombre de usuario ya existe.")
+        return username
+    
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        if email and User.objects.filter(email=email).exists():
+            raise forms.ValidationError("Este correo electrónico ya está registrado.")
+        return email
+    
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.set_password(self.cleaned_data["password1"])
+        if commit:
+            user.save()
+            # Crear perfil de usuario
+            UserProfile.objects.create(
+                user=user,
+                role=self.cleaned_data['role'],
+                departamento=self.cleaned_data.get('departamento', ''),
+                telefono=self.cleaned_data.get('telefono', ''),
+                activo=True
+            )
+        return user
+
+class FiltroSolicitudesForm(forms.Form):
+    """Formulario para filtrar solicitudes en el dashboard"""
+    proyecto = forms.ModelChoiceField(
+        queryset=Proyecto.objects.filter(activo=True),
+        required=False,
+        empty_label="Todos los proyectos",
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label="Proyecto"
+    )
+    estado = forms.ChoiceField(
+        choices=[('', 'Todos los estados')] + Solicitud.ESTADOS,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label="Estado"
+    )
+    tipo_solicitud = forms.ChoiceField(
+        choices=[('', 'Todos los tipos')] + Solicitud.TIPOS_SOLICITUD,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label="Tipo de Solicitud"
     )

@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestión de Proyectos - Sistema de Tickets{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="fas fa-project-diagram"></i> Gestión de Proyectos</h1>
+            <a href="{% url 'crear_proyecto' %}" class="btn btn-success">
+                <i class="fas fa-plus"></i> Nuevo Proyecto
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mb-3">
+    <div class="col-md-4">
+        <form method="get" class="d-flex">
+            <select name="estado" class="form-select me-2">
+                <option value="">Todos los estados</option>
+                {% for estado_key, estado_value in estados_proyecto %}
+                <option value="{{ estado_key }}" {% if estado_filtro == estado_key %}selected{% endif %}>
+                    {{ estado_value }}
+                </option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+        </form>
+    </div>
+</div>
+
+<!-- Lista de Proyectos -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                {% if proyectos %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Nombre</th>
+                                    <th>Cliente</th>
+                                    <th>Líder</th>
+                                    <th>Estado</th>
+                                    <th>Solicitudes</th>
+                                    <th>Fecha Creación</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for proyecto in proyectos %}
+                                <tr>
+                                    <td><strong>{{ proyecto.codigo }}</strong></td>
+                                    <td>{{ proyecto.nombre }}</td>
+                                    <td>{{ proyecto.cliente|default:"Sin especificar" }}</td>
+                                    <td>
+                                        {% if proyecto.lider_proyecto %}
+                                            {{ proyecto.lider_proyecto.get_full_name|default:proyecto.lider_proyecto.username }}
+                                        {% else %}
+                                            <span class="text-muted">Sin asignar</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{% if proyecto.estado == 'activo' %}success{% elif proyecto.estado == 'en_pausa' %}warning{% elif proyecto.estado == 'finalizado' %}info{% else %}danger{% endif %}">
+                                            {{ proyecto.get_estado_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary">{{ proyecto.get_solicitudes_total }}</span>
+                                        <small class="text-muted">({{ proyecto.get_solicitudes_activas }} activas)</small>
+                                    </td>
+                                    <td>{{ proyecto.fecha_creacion|date:"d/m/Y" }}</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'detalle_proyecto' proyecto.pk %}" class="btn btn-outline-primary" title="Ver Detalle">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="{% url 'editar_proyecto' proyecto.pk %}" class="btn btn-outline-warning" title="Editar">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <a href="{% url 'asignar_miembros_proyecto' proyecto.pk %}" class="btn btn-outline-info" title="Asignar Miembros">
+                                                <i class="fas fa-users"></i>
+                                            </a>
+                                            {% if proyecto.get_solicitudes_total == 0 %}
+                                            <a href="{% url 'eliminar_proyecto' proyecto.pk %}" class="btn btn-outline-danger" title="Eliminar">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación -->
+                    {% if proyectos.has_other_pages %}
+                    <nav aria-label="Paginación de proyectos">
+                        <ul class="pagination justify-content-center">
+                            {% if proyectos.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ proyectos.previous_page_number }}{% if estado_filtro %}&estado={{ estado_filtro }}{% endif %}">Anterior</a>
+                                </li>
+                            {% endif %}
+                            
+                            {% for num in proyectos.paginator.page_range %}
+                                {% if proyectos.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ num }}{% if estado_filtro %}&estado={{ estado_filtro }}{% endif %}">{{ num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if proyectos.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ proyectos.next_page_number }}{% if estado_filtro %}&estado={{ estado_filtro }}{% endif %}">Siguiente</a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-project-diagram fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No hay proyectos registrados</h5>
+                        <p class="text-muted">Comienza creando tu primer proyecto</p>
+                        <a href="{% url 'crear_proyecto' %}" class="btn btn-success">
+                            <i class="fas fa-plus"></i> Crear Primer Proyecto
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

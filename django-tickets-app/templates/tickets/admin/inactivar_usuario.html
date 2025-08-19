@@ -1,0 +1,286 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}
+    {% if usuario.is_active %}Inactivar{% else %}Activar{% endif %} Usuario - {{ usuario.username }} - Sistema de Tickets
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>
+                    <i class="fas fa-user-{% if usuario.is_active %}slash{% else %}check{% endif %}"></i> 
+                    {% if usuario.is_active %}Inactivar{% else %}Activar{% endif %} Usuario
+                </h2>
+                <a href="{% url 'gestionar_usuarios' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Información del Usuario -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-user"></i> Información del Usuario</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 text-center">
+                            <div class="avatar-lg bg-primary text-white rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center" 
+                                 style="width: 80px; height: 80px; font-size: 1.5rem;">
+                                {{ usuario.first_name|first|default:usuario.username|first|upper }}{{ usuario.last_name|first|upper }}
+                            </div>
+                            <h5>{{ usuario.get_full_name|default:usuario.username }}</h5>
+                            <p class="text-muted">{{ usuario.email|default:"Sin email" }}</p>
+                        </div>
+                        
+                        <div class="col-md-9">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <td><strong>Usuario:</strong></td>
+                                            <td>{{ usuario.username }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Rol:</strong></td>
+                                            <td>
+                                                {% if usuario.profile %}
+                                                    <span class="badge bg-info">{{ usuario.profile.get_role_display }}</span>
+                                                {% else %}
+                                                    <span class="badge bg-warning">Sin rol</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Estado actual:</strong></td>
+                                            <td>
+                                                {% if usuario.is_active %}
+                                                    <span class="badge bg-success">Activo</span>
+                                                {% else %}
+                                                    <span class="badge bg-danger">Inactivo</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Departamento:</strong></td>
+                                            <td>{{ usuario.profile.departamento|default:"No especificado" }}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <td><strong>Fecha registro:</strong></td>
+                                            <td>{{ usuario.date_joined|date:"d/m/Y" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Último acceso:</strong></td>
+                                            <td>{{ usuario.last_login|date:"d/m/Y H:i"|default:"Nunca" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Teléfono:</strong></td>
+                                            <td>{{ usuario.profile.telefono|default:"No especificado" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Proyectos:</strong></td>
+                                            <td>
+                                                {% if usuario.profile %}
+                                                    <span class="badge bg-primary">{{ usuario.profile.proyectos_asignados.count }}</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">0</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Estadísticas de Impacto -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-chart-bar"></i> Estadísticas del Usuario</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h4 class="text-primary">{{ usuario.solicitud_set.count|default:0 }}</h4>
+                                    <small class="text-muted">Total Solicitudes</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h4 class="text-warning">{{ usuario.solicitud_set.exclude.count|default:0 }}</h4>
+                                    <small class="text-muted">Solicitudes Activas</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h4 class="text-info">{{ usuario.comentario_set.count|default:0 }}</h4>
+                                    <small class="text-muted">Comentarios</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h4 class="text-success">
+                                        {% if usuario.profile %}
+                                            {{ usuario.profile.proyectos_asignados.count }}
+                                        {% else %}
+                                            0
+                                        {% endif %}
+                                    </h4>
+                                    <small class="text-muted">Proyectos Asignados</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel de Acción -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>
+                        <i class="fas fa-exclamation-triangle text-{% if usuario.is_active %}warning{% else %}success{% endif %}"></i>
+                        {% if usuario.is_active %}Inactivar Usuario{% else %}Activar Usuario{% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if usuario.is_active %}
+                        <div class="alert alert-warning">
+                            <h6><i class="fas fa-info-circle"></i> ¿Qué sucederá al inactivar?</h6>
+                            <ul class="mb-0">
+                                <li>El usuario no podrá iniciar sesión</li>
+                                <li>Sus solicitudes se mantendrán intactas</li>
+                                <li>Los comentarios permanecerán visibles</li>
+                                <li>Los proyectos asignados no se verán afectados</li>
+                                <li>Se puede reactivar en cualquier momento</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <strong><i class="fas fa-shield-alt"></i> Integridad de Datos:</strong><br>
+                            Todos los datos históricos del usuario se preservarán. Esta acción es reversible.
+                        </div>
+                    {% else %}
+                        <div class="alert alert-success">
+                            <h6><i class="fas fa-info-circle"></i> ¿Qué sucederá al activar?</h6>
+                            <ul class="mb-0">
+                                <li>El usuario podrá iniciar sesión nuevamente</li>
+                                <li>Recuperará acceso a sus solicitudes</li>
+                                <li>Podrá crear nuevas solicitudes</li>
+                                <li>Tendrá acceso a sus proyectos asignados</li>
+                                <li>Mantendrá su rol y permisos</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <strong><i class="fas fa-user-check"></i> Reactivación Completa:</strong><br>
+                            El usuario recuperará todos sus accesos y funcionalidades.
+                        </div>
+                    {% endif %}
+
+                    <form method="post" class="mt-3">
+                        {% csrf_token %}
+                        
+                        <div class="form-group mb-3">
+                            <label class="form-label">Confirma la acción:</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="confirmar" required>
+                                <label class="form-check-label" for="confirmar">
+                                    Confirmo que deseo {% if usuario.is_active %}inactivar{% else %}activar{% endif %} este usuario
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            {% if usuario.is_active %}
+                                <button type="submit" name="accion" value="inactivar" 
+                                        class="btn btn-warning btn-lg">
+                                    <i class="fas fa-user-slash"></i> Inactivar Usuario
+                                </button>
+                            {% else %}
+                                <button type="submit" name="accion" value="activar" 
+                                        class="btn btn-success btn-lg">
+                                    <i class="fas fa-user-check"></i> Activar Usuario
+                                </button>
+                            {% endif %}
+                            
+                            <a href="{% url 'gestionar_usuarios' %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> Cancelar
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Proyectos del Usuario -->
+            {% if usuario.profile and usuario.profile.proyectos_asignados.exists %}
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5><i class="fas fa-project-diagram"></i> Proyectos Asignados</h5>
+                </div>
+                <div class="card-body">
+                    {% for proyecto in usuario.profile.proyectos_asignados.all %}
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="flex-grow-1">
+                                <div class="fw-bold">{{ proyecto.nombre }}</div>
+                                <small class="text-muted">{{ proyecto.codigo }}</small>
+                            </div>
+                            <span class="badge bg-{% if proyecto.activo %}success{% else %}secondary{% endif %}">
+                                {{ proyecto.get_estado_display }}
+                            </span>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const confirmarCheckbox = document.getElementById('confirmar');
+    const submitButton = form.querySelector('button[type="submit"]');
+    
+    // Deshabilitar botón hasta que se confirme
+    submitButton.disabled = true;
+    
+    confirmarCheckbox.addEventListener('change', function() {
+        submitButton.disabled = !this.checked;
+    });
+    
+    // Confirmación adicional al enviar
+    form.addEventListener('submit', function(e) {
+        const accion = '{% if usuario.is_active %}inactivar{% else %}activar{% endif %}';
+        const usuario = '{{ usuario.username }}';
+        
+        if (!confirm(`¿Estás seguro de que deseas ${accion} al usuario "${usuario}"?`)) {
+            e.preventDefault();
+        }
+    });
+});
+</script>
+{% endblock %}

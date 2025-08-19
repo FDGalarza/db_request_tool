@@ -1,0 +1,228 @@
+{% extends 'base.html' %}
+
+{% block title %}Panel de Administración - Sistema de Tickets{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="fas fa-tachometer-alt"></i> Panel de Administración</h1>
+            <div class="btn-group">
+                <a href="{% url 'crear_proyecto' %}" class="btn btn-success">
+                    <i class="fas fa-plus"></i> Nuevo Proyecto
+                </a>
+                <a href="{% url 'lista_proyectos' %}" class="btn btn-primary">
+                    <i class="fas fa-project-diagram"></i> Gestionar Proyectos
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estadísticas Generales -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ stats.total_usuarios }}</h4>
+                        <p class="mb-0">Total Usuarios</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-users fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ stats.total_proyectos }}</h4>
+                        <p class="mb-0">Total Proyectos</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-project-diagram fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ stats.total_solicitudes }}</h4>
+                        <p class="mb-0">Total Solicitudes</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-ticket-alt fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ stats.solicitudes_pendientes }}</h4>
+                        <p class="mb-0">Pendientes</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-clock fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Proyectos Recientes -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-project-diagram"></i> Proyectos Recientes</h5>
+            </div>
+            <div class="card-body">
+                {% if proyectos_recientes %}
+                    <div class="list-group list-group-flush">
+                        {% for proyecto in proyectos_recientes %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">{{ proyecto.codigo }} - {{ proyecto.nombre }}</h6>
+                                <small class="text-muted">{{ proyecto.cliente }}</small>
+                            </div>
+                            <div>
+                                <span class="badge bg-{% if proyecto.estado == 'activo' %}success{% elif proyecto.estado == 'en_pausa' %}warning{% elif proyecto.estado == 'finalizado' %}info{% else %}danger{% endif %} rounded-pill">
+                                    {{ proyecto.get_estado_display }}
+                                </span>
+                                <a href="{% url 'detalle_proyecto' proyecto.pk %}" class="btn btn-sm btn-outline-primary ms-2">
+                                    Ver
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="text-center mt-3">
+                        <a href="{% url 'lista_proyectos' %}" class="btn btn-primary">Ver Todos</a>
+                    </div>
+                {% else %}
+                    <p class="text-muted">No hay proyectos registrados.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Estadísticas por Rol -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-pie"></i> Usuarios por Rol</h5>
+            </div>
+            <div class="card-body">
+                {% if roles_stats %}
+                    {% for role_code, count in roles_stats.items %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>
+                            {% for r_code, r_name in roles %}
+                                {% if r_code == role_code %}{{ r_name }}{% endif %}
+                            {% endfor %}
+                        </span>
+                        <span class="badge bg-secondary">{{ count }}</span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">No hay estadísticas de roles disponibles.</p>
+                {% endif %}
+                <div class="text-center mt-3">
+                    <a href="{% url 'gestionar_usuarios' %}" class="btn btn-primary">Gestionar Usuarios</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Solicitudes Recientes -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-list"></i> Solicitudes Recientes</h5>
+            </div>
+            <div class="card-body">
+                {% if solicitudes_recientes %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Proyecto</th>
+                                    <th>Tipo</th>
+                                    <th>Usuario</th>
+                                    <th>Estado</th>
+                                    <th>Fecha</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for solicitud in solicitudes_recientes %}
+                                <tr>
+                                    <td>{{ solicitud.id }}</td>
+                                    <td>
+                                        {% if solicitud.proyecto %}
+                                            {{ solicitud.proyecto.codigo }}
+                                        {% else %}
+                                            <span class="text-muted">Sin proyecto</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ solicitud.get_tipo_solicitud_display }}</td>
+                                    <td>{{ solicitud.usuario.username }}</td>
+                                    <td>
+                                        <span class="badge bg-{% if solicitud.estado == 'finalizada' %}success{% elif solicitud.estado == 'registrada' %}warning{% else %}info{% endif %}">
+                                            {{ solicitud.get_estado_display }}
+                                        </span>
+                                    </td>
+                                    <td>{{ solicitud.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                                    <td>
+                                        <a href="{% url 'detalle_solicitud' solicitud.pk %}" class="btn btn-sm btn-outline-primary">
+                                            Ver
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted">No hay solicitudes registradas.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Alertas -->
+{% if usuarios_sin_perfil %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="alert alert-warning">
+            <h6><i class="fas fa-exclamation-triangle"></i> Usuarios sin Perfil</h6>
+            <p>Hay {{ usuarios_sin_perfil.count }} usuario(s) sin perfil asignado:</p>
+            <ul>
+                {% for usuario in usuarios_sin_perfil %}
+                <li>{{ usuario.username }} - <a href="{% url 'editar_usuario' usuario.pk %}">Asignar Perfil</a></li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
