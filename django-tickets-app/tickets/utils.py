@@ -193,7 +193,7 @@ def validar_estructura_crear_tabla(df):
             return False, "No se encontró la columna de 'Tipo de dato'. Verifique que el archivo tenga los headers correctos."
         
         # Contar filas con datos válidos después de los headers
-        filas_validas = contar_filas_validas_mejorada(df, fila_headers, columnas_headers)
+        filas_validas = contar_filas_validas(df, fila_headers, columnas_headers)
         
         if filas_validas == 0:
             return False, "No se encontraron definiciones de columnas válidas después de los headers"
@@ -229,6 +229,11 @@ def encontrar_headers_en_contenido(df):
                     headers_temp['nombre_columna'] = j
                     headers_encontrados_en_fila += 1
                     print(f"DEBUG: Header 'nombre_columna' encontrado en fila {i}, col {j}")
+
+                elif valor_str in ['accion', 'acción', 'operacion', 'operación']:
+                    headers_temp['accion'] = j
+                    headers_encontrados_en_fila += 1
+                    print(f"DEBUG: Header 'accion' encontrado en fila {i}, col {j}")
                 
                 elif valor_str in ['tipo de dato', 'tipo_dato', 'tipo dato']:
                     headers_temp['tipo_dato'] = j
@@ -262,7 +267,10 @@ def encontrar_headers_en_contenido(df):
                     print(f"DEBUG: Header 'comentario' encontrado en fila {i}, col {j}")
         
         # Si encontramos al menos los headers mínimos en esta fila
-        if headers_encontrados_en_fila >= 2:  # Al menos nombre_columna y tipo_dato
+        if (
+                ('nombre_columna' in headers_temp and 'tipo_dato' in headers_temp) or
+                ('nombre_columna' in headers_temp and 'accion' in headers_temp)
+           ):  # Al menos nombre_columna y tipo_dato
             fila_headers = i
             columnas_headers = headers_temp
             print(f"DEBUG: Fila de headers confirmada: {i} con {headers_encontrados_en_fila} headers")
@@ -270,7 +278,7 @@ def encontrar_headers_en_contenido(df):
     
     return fila_headers, columnas_headers
 
-def contar_filas_validas_mejorada(df, fila_headers, columnas_headers):
+def contar_filas_validas(df, fila_headers, columnas_headers):
     """
     Cuenta filas válidas después de encontrar los headers
     """
@@ -579,22 +587,59 @@ def generar_script_tabla(df, tipo_solicitud, base_datos):
                 print("DEBUG: No se encontraron columnas válidas")
                 
         else:  # modificar_tabla
-            script += f"USE {base_datos};\n\n"
-            for _, row in df.iterrows():
-                if pd.isna(row.get('nombre_columna')):
-                    continue
+            # Buscar nombre de la tabla (igual que en crear_tabla)
+            nombre_tabla = None
+            for i in range(min(5, len(df))):
+                for j, col in enumerate(df.columns):
+                    valor = df.iloc[i, j]
+                    if pd.notna(valor) and str(valor).strip().lower() in ["nombre tabla", "nombre_tabla"]:
+                        if j + 1 < len(df.columns):
+                            nombre_tabla_valor = df.iloc[i, j+1]
+                            if pd.notna(nombre_tabla_valor):
+                                nombre_tabla = str(nombre_tabla_valor).strip()
+                        elif i + 1 < len(df):
+                            nombre_tabla_valor = df.iloc[i+1, j]
+                            if pd.notna(nombre_tabla_valor):
+                                nombre_tabla = str(nombre_tabla_valor).strip()
+            
+            if not nombre_tabla:
+                nombre_tabla = f"tabla_{base_datos.lower().replace(' ', '_')}"
+            
+            script += f"-- Modificación de tabla: {nombre_tabla}\n"
+            
+            # Usar la misma lógica de headers
+            fila_headers, columnas_headers = encontrar_headers_en_contenido(df)
+            print(f"DEBUG: Headers detectados en modificar_tabla: {columnas_headers}")
+            
+            if fila_headers is not None and "nombre_columna" in columnas_headers and "accion" in columnas_headers:
+                print("DEBUG: Mostrando filas a procesar:")
+                print(df.iloc[fila_headers+1 : fila_headers+6].to_string())
+                inicio_datos = fila_headers + 1
+                for i in range(inicio_datos, len(df)):
+                    nombre_col_valor = df.iloc[i, columnas_headers["nombre_columna"]]
+                    accion_valor = df.iloc[i, columnas_headers["accion"]] if "accion" in columnas_headers else None
+                    tipo_valor = df.iloc[i, columnas_headers["tipo_dato"]] if "tipo_dato" in columnas_headers else None
                     
-                nombre_col = row['nombre_columna']
-                tipo_dato = row['tipo_dato']
-                accion = row.get('accion', 'ADD')
-                nombre_tabla = row.get('nombre_tabla', 'tabla_ejemplo')
-                
-                if accion.upper() == 'ADD':
-                    script += f"ALTER TABLE {nombre_tabla} ADD COLUMN {nombre_col} {tipo_dato};\n"
-                elif accion.upper() == 'DROP':
-                    script += f"ALTER TABLE {nombre_tabla} DROP COLUMN {nombre_col};\n"
-                elif accion.upper() == 'MODIFY':
-                    script += f"ALTER TABLE {nombre_tabla} MODIFY COLUMN {nombre_col} {tipo_dato};\n"
+                    if pd.isna(nombre_col_valor) or pd.isna(accion_valor):
+                        continue
+                    
+                    nombre_col = str(nombre_col_valor).strip()
+                    accion = str(accion_valor).strip().upper()
+                    tipo_dato = str(tipo_valor).strip() if pd.notna(tipo_valor) else ""
+                    
+                    if not nombre_col:
+                        continue
+                    
+                    # Generar ALTER según acción
+                    if accion in ["AGREGAR", "ADD"]:
+                        script += f"ALTER TABLE {nombre_tabla} ADD COLUMN {nombre_col} {tipo_dato};\n"
+                    elif accion in ["ELIMINAR", "DROP"]:
+                        script += f"ALTER TABLE {nombre_tabla} DROP COLUMN {nombre_col};\n"
+                    elif accion in ["MODIFICAR", "MODIFY"]:
+                        script += f"ALTER TABLE {nombre_tabla} MODIFY COLUMN {nombre_col} {tipo_dato};\n"
+            
+            else:
+                script += "-- No se encontraron encabezados válidos para modificar la tabla\n"
         
         print(f"DEBUG: Script final generado, longitud: {len(script)}")
         return script
@@ -605,9 +650,6 @@ def generar_script_tabla(df, tipo_solicitud, base_datos):
         traceback.print_exc()
         return f"-- Error generando script de tabla: {str(e)}\n-- Verifique que el archivo tenga la estructura correcta"
 
-import pandas as pd
-
-import pandas as pd
 
 def generar_script_permisos_usuarios(ruta_archivo):
     # Leer archivo sin header para analizar filas

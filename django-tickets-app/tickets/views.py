@@ -270,7 +270,7 @@ def detalle_solicitud(request, pk):
 
                     # Marcar como finalizada
                     estado_anterior  = solicitud.estado
-                    solicitud.estado = "finalizada"
+                    solicitud.estado = "revision"
                     solicitud.save()
 
                     # Guardar comentario
@@ -284,17 +284,12 @@ def detalle_solicitud(request, pk):
                     HistorialEstado.objects.create(
                         solicitud       = solicitud,
                         estado_anterior =  estado_anterior,
-                        estado_nuevo    = "finalizada",
+                        estado_nuevo    = "revision",
                         usuario_cambio  = request.user,
                         comentario      = comentario_texto
                     )
 
-                    # Enviar correo al solicitante con script adjunto
-                    try:
-                        enviar_correo_notificacion(solicitud, "finalizada", comentario_texto)
-                        messages.success(request, 'Script SQL generado exitosamente, se envio correo al solicitante.')
-                    except Exception as e:
-                        messages.warning(request, f"Script generado y finalizada, pero error enviando correo: {str(e)}")
+                    messages.success(request, 'Script SQL generado exitosamente')
                         
                 else:
                     messages.error(request, 'No se pudo generar el script SQL.')

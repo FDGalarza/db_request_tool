@@ -5,14 +5,28 @@ from .models import Solicitud, UserProfile, Comentario, Proyecto
 
 # ELIMINAMOS CustomUserCreationForm - Ya no se permite registro público
 
+import json
+from django import forms
+from .models import Proyecto, User
+
 class ProyectoForm(forms.ModelForm):
     """Formulario para crear y editar proyectos"""
+    configuraciones = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'rows': 10, 
+            'class': 'form-control', 
+            'placeholder': 'Ingrese la configuración de nombramiento en formato JSON'
+        }),
+        required=False,
+        help_text="Configuración de reglas de nombramiento (JSON)."
+    )
+
     class Meta:
         model = Proyecto
         fields = [
             'nombre', 'codigo', 'descripcion', 'cliente', 'lider_proyecto',
-            'base_datos_principal', 'motor_bd', 'estado', 'fecha_inicio', 
-            'fecha_fin_estimada', 'activo'
+            'base_datos_principal', 'motor_bd', 'estado',
+            'fecha_inicio', 'fecha_fin_estimada', 'activo', 'configuraciones'
         ]
         widgets = {
             'descripcion': forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}),
@@ -29,11 +43,29 @@ class ProyectoForm(forms.ModelForm):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
         # Filtrar solo usuarios que pueden ser líderes de proyecto
         self.fields['lider_proyecto'].queryset = User.objects.filter(
             profile__role__in=['admin', 'lider']
         )
         self.fields['lider_proyecto'].empty_label = "Seleccionar líder..."
+
+        # Prellenar configuraciones como JSON legible si el proyecto ya existe
+        if self.instance and self.instance.pk and self.instance.configuraciones:
+            self.initial['configuraciones'] = json.dumps(
+                self.instance.configuraciones, indent=2
+            )
+
+    def clean_configuraciones(self):
+        """Validar que el JSON ingresado sea válido"""
+        data = self.cleaned_data.get("configuraciones")
+        if not data:
+            return {}
+        try:
+            return json.loads(data)
+        except json.JSONDecodeError as e:
+            raise forms.ValidationError(f"El JSON no es válido: {str(e)}")
+
 
 class SolicitudForm(forms.ModelForm):
     # Campo para seleccionar ambientes (para scripts)

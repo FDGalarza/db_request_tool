@@ -174,19 +174,6 @@
                         </div>
 
                         <div class="form-group mb-3">
-                            <label for="id_configuraciones" class="form-label">Configuraciones Adicionales</label>
-                            {{ form.configuraciones }}
-                            {% if form.configuraciones.errors %}
-                                <div class="invalid-feedback d-block">
-                                    {{ form.configuraciones.errors.0 }}
-                                </div>
-                            {% endif %}
-                            <small class="form-text text-muted">
-                                Configuraciones específicas del proyecto en formato JSON (opcional)
-                            </small>
-                        </div>
-
-                        <div class="form-group mb-3">
                             <div class="form-check">
                                 {{ form.activo }}
                                 <label class="form-check-label" for="id_activo">
