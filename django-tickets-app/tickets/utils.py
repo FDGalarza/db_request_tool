@@ -9,7 +9,11 @@ import os
 import json
 import secrets
 import string
+import re
 
+# =========================
+# Lectura del Excel
+# =========================
 def procesar_archivo_excel(solicitud):
     """
     Procesa archivos Excel según el tipo de solicitud y genera scripts SQL
@@ -17,32 +21,30 @@ def procesar_archivo_excel(solicitud):
     if not solicitud.archivo_adjunto:
         print("DEBUG: No hay archivo adjunto")
         return None
-    
+
     try:
-        # Leer el archivo Excel
         file_path = solicitud.archivo_adjunto.path
         print(f"DEBUG: Procesando archivo: {file_path}")
-        
-        # Leer con diferentes métodos para debug
+
         df = pd.read_excel(file_path)
         print(f"DEBUG: DataFrame shape: {df.shape}")
         print(f"DEBUG: Columnas encontradas: {list(df.columns)}")
-        print(f"DEBUG: Primeras 5 filas:")
+        print("DEBUG: Primeras 5 filas:")
         print(df.head())
-        
+
         if solicitud.tipo_solicitud in ['crear_tabla', 'modificar_tabla']:
             return generar_script_tabla(df, solicitud.tipo_solicitud, solicitud.base_datos_aplicacion)
         elif solicitud.tipo_solicitud in ['asignar_permisos', 'crear_usuarios']:
-            return generar_script_permisos_usuarios(solicitud.archivo_adjunto.path)
+            return generar_script_permisos_usuarios(file_path)
         elif solicitud.tipo_solicitud in ['crear_bd', 'crear_esquemas']:
             return generar_script_bd_esquemas(df, solicitud.tipo_solicitud, solicitud.base_datos_aplicacion)
-        
+
     except Exception as e:
         print(f"ERROR procesando archivo Excel: {e}")
         import traceback
         traceback.print_exc()
         return f"-- Error procesando archivo: {str(e)}"
-    
+
     return None
 
 def validar_estructura_excel(archivo, tipo_solicitud):
@@ -205,78 +207,55 @@ def validar_estructura_crear_tabla(df):
         traceback.print_exc()
         return False, f"Error validando estructura: {str(e)}"
 
+# =========================
+# Búsqueda de headers en el contenido
+# =========================
 def encontrar_headers_en_contenido(df):
     """
-    Busca los headers dentro del contenido del DataFrame, no en los nombres de columnas
+    Busca los headers dentro del contenido del DataFrame, no en los nombres de columnas.
+    Detecta sinónimos y soporta 'tamaño'/'tamano'/'tamanio'/'longitud'/'largo'/'size'.
     """
     columnas_headers = {}
     fila_headers = None
-    
-    # Buscar en todas las filas y columnas
-    for i in range(len(df)):
-        headers_encontrados_en_fila = 0
-        headers_temp = {}
-        
-        for j in range(len(df.columns)):
-            valor = df.iloc[i, j]
-            
-            if pd.notna(valor):
-                valor_str = str(valor).lower().strip()
-                print(f"DEBUG: Fila {i}, Col {j}: '{valor_str}'")
-                
-                # Buscar headers específicos
-                if valor_str in ['nombre de la columna', 'nombre_columna', 'columna']:
-                    headers_temp['nombre_columna'] = j
-                    headers_encontrados_en_fila += 1
-                    print(f"DEBUG: Header 'nombre_columna' encontrado en fila {i}, col {j}")
 
-                elif valor_str in ['accion', 'acción', 'operacion', 'operación']:
-                    headers_temp['accion'] = j
-                    headers_encontrados_en_fila += 1
-                    print(f"DEBUG: Header 'accion' encontrado en fila {i}, col {j}")
-                
-                elif valor_str in ['tipo de dato', 'tipo_dato', 'tipo dato']:
-                    headers_temp['tipo_dato'] = j
-                    headers_encontrados_en_fila += 1
-                    print(f"DEBUG: Header 'tipo_dato' encontrado en fila {i}, col {j}")
-                
-                elif valor_str in ['es nullable', 'nullable', 'acepta null', 'null']:
-                    headers_temp['nullable'] = j
-                    headers_encontrados_en_fila += 1
-                    print(f"DEBUG: Header 'nullable' encontrado en fila {i}, col {j}")
-                
-                elif valor_str in ['es llave primaria', 'llave primaria', 'clave primaria', 'primary key', 'pk']:
-                    headers_temp['primaria'] = j
-                    headers_encontrados_en_fila += 1
-                    print(f"DEBUG: Header 'primaria' encontrado en fila {i}, col {j}")
-                
-                elif valor_str in ['por defecto', 'default', 'valor defecto', 'por por defecto']:
-                    headers_temp['default'] = j
-                    print(f"DEBUG: Header 'default' encontrado en fila {i}, col {j}")
-                
-                elif valor_str in ['es foranea', 'foranea', 'foreign key', 'fk']:
-                    headers_temp['foranea'] = j
-                    print(f"DEBUG: Header 'foranea' encontrado en fila {i}, col {j}")
-                
-                elif valor_str in ['tabla referencia', 'referencia', 'tabla_referencia']:
-                    headers_temp['referencia'] = j
-                    print(f"DEBUG: Header 'referencia' encontrado en fila {i}, col {j}")
-                
-                elif valor_str in ['comentario de campo', 'comentario campo', 'comentario']:
-                    headers_temp['comentario'] = j
-                    print(f"DEBUG: Header 'comentario' encontrado en fila {i}, col {j}")
-        
-        # Si encontramos al menos los headers mínimos en esta fila
-        if (
-                ('nombre_columna' in headers_temp and 'tipo_dato' in headers_temp) or
-                ('nombre_columna' in headers_temp and 'accion' in headers_temp)
-           ):  # Al menos nombre_columna y tipo_dato
+    # Mapeo de sinónimos -> clave
+    synonyms = {
+        "nombre_columna": {"nombre de la columna", "nombre_columna", "columna", "campo"},
+        "accion": {"accion", "acción", "operacion", "operación"},
+        "tipo_dato": {"tipo de dato", "tipo_dato", "tipo dato", "tipo"},
+        "nullable": {"es nullable", "nullable", "acepta null", "null"},
+        "primaria": {"es llave primaria", "llave primaria", "clave primaria", "primary key", "pk"},
+        "default": {"por defecto", "default", "valor defecto", "por por defecto", "defecto"},
+        "foranea": {"es foranea", "foranea", "foreign key", "fk", "foránea"},
+        "referencia": {"tabla referencia", "referencia", "tabla_referencia", "tabla ref", "ref"},
+        "comentario": {"comentario de campo", "comentario campo", "comentario", "descripcion", "descripción"},
+        "tamano": {"tamano", "tamaño", "tamanio", "longitud", "largo", "size"}
+    }
+
+    def normalize(s):
+        return str(s).strip().lower()
+
+    for i in range(len(df)):
+        headers_temp = {}
+        for j in range(len(df.columns)):
+            val = df.iloc[i, j]
+            if pd.isna(val):
+                continue
+            vs = normalize(val)
+            # probar cada clave y sus sinónimos
+            for key, words in synonyms.items():
+                if vs in words:
+                    headers_temp[key] = j
+
+        # condición mínima: nombre_columna + (tipo_dato o accion)
+        if ("nombre_columna" in headers_temp) and ("tipo_dato" in headers_temp or "accion" in headers_temp):
             fila_headers = i
             columnas_headers = headers_temp
-            print(f"DEBUG: Fila de headers confirmada: {i} con {headers_encontrados_en_fila} headers")
+            print(f"DEBUG: Fila de headers confirmada: {i} -> {columnas_headers}")
             break
-    
+
     return fila_headers, columnas_headers
+
 
 def contar_filas_validas(df, fila_headers, columnas_headers):
     """
@@ -396,259 +375,174 @@ def validar_tipo_columna(serie, tipo_esperado):
     
     return True
 
+# =========================
+# Generador del script de tablas
+# =========================
 def generar_script_tabla(df, tipo_solicitud, base_datos):
     """
-    Genera script SQL para creación o modificación de tablas - MEJORADA
+    Genera script SQL para creación o modificación de tablas.
+    Usa 'Tamaño' (o sinónimos) cuando aplique.
     """
     try:
-
         script = f"-- Script generado automáticamente para {tipo_solicitud}\n"
         script += f"-- Base de datos/Aplicación: {base_datos}\n"
         script += f"-- Fecha de generación: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-        
-        if tipo_solicitud == 'crear_tabla':
-            # Buscar información de la tabla en las primeras filas
-            nombre_tabla = None
-            comentario_tabla = None
-            
-            print("DEBUG: Buscando información de tabla...")
-            
-            # Buscar en las primeras filas
-            for i in range(min(5, len(df))):
-                for j, col in enumerate(df.columns):
-                    valor = df.iloc[i, j]
-                    
-                    if pd.notna(valor):
-                        valor_str = str(valor).strip()
-                        print(f"DEBUG: Fila {i}, Col {j} ('{col}'): '{valor_str}'")
-                        
-                        # Si encontramos "nombre tabla" en cualquier celda
-                        if valor_str.lower() in ['nombre tabla', 'nombre_tabla']:
-                            # El nombre de la tabla debería estar en la siguiente columna o fila
-                            if j + 1 < len(df.columns):
-                                nombre_tabla_valor = df.iloc[i, j + 1]
-                                if pd.notna(nombre_tabla_valor):
-                                    nombre_tabla = str(nombre_tabla_valor).strip()
-                                    print(f"DEBUG: Nombre tabla encontrado: {nombre_tabla}")
-                            # O en la siguiente fila, misma columna
-                            elif i + 1 < len(df):
-                                nombre_tabla_valor = df.iloc[i + 1, j]
-                                if pd.notna(nombre_tabla_valor):
-                                    nombre_tabla = str(nombre_tabla_valor).strip()
-                                    print(f"DEBUG: Nombre tabla encontrado en fila siguiente: {nombre_tabla}")
-                        
-                        # Si encontramos "comentario tabla" o solo "comentario" en cualquier celda
-                        elif (valor_str.lower() in ['comentario tabla', 'coemtario tabla', 'comentario_tabla', 'comentario'] or
-                              'comentario' in valor_str.lower()):
-                            # El comentario debería estar en la siguiente columna o fila
-                            if j + 1 < len(df.columns):
-                                comentario_valor = df.iloc[i, j + 1]
-                                if pd.notna(comentario_valor):
-                                    comentario_tabla = str(comentario_valor).strip()
-                                    print(f"DEBUG: Comentario tabla encontrado: {comentario_tabla}")
-                            elif i + 1 < len(df):
-                                comentario_valor = df.iloc[i + 1, j]
-                                if pd.notna(comentario_valor):
-                                    comentario_tabla = str(comentario_valor).strip()
-                                    print(f"DEBUG: Comentario tabla encontrado en fila siguiente: {comentario_tabla}")
-            
-            if not nombre_tabla:
-                nombre_tabla = f"tabla_{base_datos.lower().replace(' ', '_')}"
-                print(f"DEBUG: Usando nombre tabla por defecto: {nombre_tabla}")
-            
-            script += f"USE {base_datos};\n\n"
-            script += f"-- Creación de tabla: {nombre_tabla}\n"
-            if comentario_tabla:
-                script += f"-- Comentario: {comentario_tabla}\n"
-            script += f"CREATE TABLE {nombre_tabla} (\n"
-            
-            # Usar la función mejorada de búsqueda de headers
-            fila_headers, columnas_headers = encontrar_headers_en_contenido(df)
-            
-            print(f"DEBUG: Headers mapeados: {columnas_headers}")
-            print(f"DEBUG: Fila headers: {fila_headers}")
-            
-            columnas_sql = []
-            claves_primarias = []
-            claves_foraneas = []
-            
-            # Procesar filas después de los headers
-            if fila_headers is not None and 'nombre_columna' in columnas_headers:
-                inicio_datos = fila_headers + 1
-                
-                for i in range(inicio_datos, len(df)):
-                    nombre_col_valor = df.iloc[i, columnas_headers['nombre_columna']]
-                    
-                    if pd.notna(nombre_col_valor):
-                        nombre_col = str(nombre_col_valor).strip()
-                        print(f"DEBUG: Procesando fila {i}, columna: '{nombre_col}'")
-                        
-                        # Saltar valores inválidos
-                        if (not nombre_col or 
-                            nombre_col.lower() in ['nombre de la columna', 'nombre_columna', 'nan'] or
-                            nombre_col.startswith('Unnamed') or
-                            len(nombre_col) <= 1):
-                            print(f"DEBUG: Saltando fila {i} - valor inválido")
-                            continue
-                        
-                        # Tipo de dato
-                        tipo_dato = 'VARCHAR(255)'  # Default
-                        if 'tipo_dato' in columnas_headers:
-                            tipo_valor = df.iloc[i, columnas_headers['tipo_dato']]
-                            if pd.notna(tipo_valor):
-                                tipo_dato = str(tipo_valor).strip()
-                                if not tipo_dato or tipo_dato.lower() in ['tipo de dato', 'nan']:
-                                    tipo_dato = 'VARCHAR(255)'
-                        
-                        # Nullable
-                        nullable = ""
-                        if 'nullable' in columnas_headers:
-                            nullable_valor = df.iloc[i, columnas_headers['nullable']]
-                            if pd.notna(nullable_valor):
-                                val_nullable = str(nullable_valor).strip().lower()
-                                if val_nullable in ['no', 'false', '0', 'n']:
-                                    nullable = "NOT NULL"
-                        
-                        # Valor por defecto
-                        default_val = ""
-                        if 'default' in columnas_headers:
-                            default_valor = df.iloc[i, columnas_headers['default']]
-                            if pd.notna(default_valor):
-                                val_default = str(default_valor).strip()
-                                if val_default and val_default.lower() not in ['', 'null', 'none', 'nan']:
-                                    if val_default.upper() in ['CURRENT_TIMESTAMP', 'NOW()', 'UUID()']:
-                                        default_val = f"DEFAULT {val_default}"
-                                    else:
-                                        default_val = f"DEFAULT '{val_default}'"
-                        
-                        # Comentario
-                        comentario = ""
-                        if 'comentario' in columnas_headers:
-                            comentario_valor = df.iloc[i, columnas_headers['comentario']]
-                            if pd.notna(comentario_valor):
-                                val_comentario = str(comentario_valor).strip()
-                                if val_comentario and val_comentario.lower() not in ['comentario de campo', 'nan']:
-                                    comentario = f"COMMENT '{val_comentario}'"
-                        
-                        # Construir definición de columna
-                        columna_def = f"    {nombre_col} {tipo_dato} {nullable} {default_val} {comentario}".strip()
-                        columnas_sql.append(columna_def)
-                        print(f"DEBUG: Columna agregada: {columna_def}")
-                        
-                        # Verificar si es clave primaria
-                        if 'primaria' in columnas_headers:
-                            primaria_valor = df.iloc[i, columnas_headers['primaria']]
-                            if pd.notna(primaria_valor):
-                                val_pk = str(primaria_valor).strip().lower()
-                                if val_pk in ['si', 'yes', '1', 'true', 'y']:
-                                    claves_primarias.append(nombre_col)
-                                    print(f"DEBUG: Clave primaria: {nombre_col}")
-                        
-                        # Verificar si es clave foránea
-                        if 'foranea' in columnas_headers:
-                            foranea_valor = df.iloc[i, columnas_headers['foranea']]
-                            if pd.notna(foranea_valor):
-                                val_fk = str(foranea_valor).strip().lower()
-                                if val_fk in ['si', 'yes', '1', 'true', 'y']:
-                                    tabla_ref = ""
-                                    if 'referencia' in columnas_headers:
-                                        ref_valor = df.iloc[i, columnas_headers['referencia']]
-                                        if pd.notna(ref_valor):
-                                            tabla_ref = str(ref_valor).strip()
-                                            if tabla_ref and tabla_ref.lower() not in ['tabla referencia', 'nan']:
-                                                claves_foraneas.append((nombre_col, tabla_ref))
-                                                print(f"DEBUG: Clave foránea: {nombre_col} -> {tabla_ref}")
-            
-            print(f"DEBUG: Total columnas procesadas: {len(columnas_sql)}")
-            print(f"DEBUG: Claves primarias: {claves_primarias}")
-            print(f"DEBUG: Claves foráneas: {claves_foraneas}")
-            
-            # Agregar definiciones de columnas
-            if columnas_sql:
-                script += ",\n".join(columnas_sql)
-                
-                # Agregar clave primaria
-                if claves_primarias:
-                    script += f",\n    PRIMARY KEY ({', '.join(claves_primarias)})"
-                
-                # Agregar claves foráneas
-                for col_fk, tabla_ref in claves_foraneas:
-                    script += f",\n    FOREIGN KEY ({col_fk}) REFERENCES {tabla_ref}(id)"
-                
-                script += "\n);\n\n"
-                
-                # Agregar comentario de tabla si existe
-                if comentario_tabla:
-                    script += f"ALTER TABLE {nombre_tabla} COMMENT = '{comentario_tabla}';\n"
-                    
-                print(f"DEBUG: Script generado exitosamente")
-            else:
-                script += "    -- No se encontraron definiciones de columnas válidas\n);\n"
-                print("DEBUG: No se encontraron columnas válidas")
-                
-        else:  # modificar_tabla
-            # Buscar nombre de la tabla (igual que en crear_tabla)
-            nombre_tabla = None
-            for i in range(min(5, len(df))):
-                for j, col in enumerate(df.columns):
-                    valor = df.iloc[i, j]
-                    if pd.notna(valor) and str(valor).strip().lower() in ["nombre tabla", "nombre_tabla"]:
-                        if j + 1 < len(df.columns):
-                            nombre_tabla_valor = df.iloc[i, j+1]
-                            if pd.notna(nombre_tabla_valor):
-                                nombre_tabla = str(nombre_tabla_valor).strip()
-                        elif i + 1 < len(df):
-                            nombre_tabla_valor = df.iloc[i+1, j]
-                            if pd.notna(nombre_tabla_valor):
-                                nombre_tabla = str(nombre_tabla_valor).strip()
-            
-            if not nombre_tabla:
-                nombre_tabla = f"tabla_{base_datos.lower().replace(' ', '_')}"
-            
-            script += f"-- Modificación de tabla: {nombre_tabla}\n"
-            
-            # Usar la misma lógica de headers
-            fila_headers, columnas_headers = encontrar_headers_en_contenido(df)
-            print(f"DEBUG: Headers detectados en modificar_tabla: {columnas_headers}")
-            
-            if fila_headers is not None and "nombre_columna" in columnas_headers and "accion" in columnas_headers:
-                print("DEBUG: Mostrando filas a procesar:")
-                print(df.iloc[fila_headers+1 : fila_headers+6].to_string())
-                inicio_datos = fila_headers + 1
-                for i in range(inicio_datos, len(df)):
-                    nombre_col_valor = df.iloc[i, columnas_headers["nombre_columna"]]
-                    accion_valor = df.iloc[i, columnas_headers["accion"]] if "accion" in columnas_headers else None
-                    tipo_valor = df.iloc[i, columnas_headers["tipo_dato"]] if "tipo_dato" in columnas_headers else None
-                    
-                    if pd.isna(nombre_col_valor) or pd.isna(accion_valor):
-                        continue
-                    
-                    nombre_col = str(nombre_col_valor).strip()
-                    accion = str(accion_valor).strip().upper()
-                    tipo_dato = str(tipo_valor).strip() if pd.notna(tipo_valor) else ""
-                    
-                    if not nombre_col:
-                        continue
-                    
-                    # Generar ALTER según acción
-                    if accion in ["AGREGAR", "ADD"]:
-                        script += f"ALTER TABLE {nombre_tabla} ADD COLUMN {nombre_col} {tipo_dato};\n"
-                    elif accion in ["ELIMINAR", "DROP"]:
-                        script += f"ALTER TABLE {nombre_tabla} DROP COLUMN {nombre_col};\n"
-                    elif accion in ["MODIFICAR", "MODIFY"]:
-                        script += f"ALTER TABLE {nombre_tabla} MODIFY COLUMN {nombre_col} {tipo_dato};\n"
-            
-            else:
-                script += "-- No se encontraron encabezados válidos para modificar la tabla\n"
-        
-        print(f"DEBUG: Script final generado, longitud: {len(script)}")
+
+        # Detectar nombre de tabla y comentario en primeras filas
+        nombre_tabla = None
+        comentario_tabla = None
+        esquema = "public"  # si tu plantilla trae "Esquema", se podría leer similar al nombre/comentario
+
+        for i in range(min(6, len(df))):
+            for j in range(len(df.columns)):
+                valor = df.iloc[i, j]
+                if pd.isna(valor):
+                    continue
+                v = str(valor).strip().lower()
+                if v in {'nombre tabla', 'nombre_tabla'}:
+                    # siguiente celda (derecha) o siguiente fila misma columna
+                    if j + 1 < len(df.columns) and pd.notna(df.iloc[i, j+1]):
+                        nombre_tabla = str(df.iloc[i, j+1]).strip()
+                    elif i + 1 < len(df) and pd.notna(df.iloc[i+1, j]):
+                        nombre_tabla = str(df.iloc[i+1, j]).strip()
+                elif v in {'esquema', 'schema'}:
+                    if j + 1 < len(df.columns) and pd.notna(df.iloc[i, j+1]):
+                        esquema = str(df.iloc[i, j+1]).strip() or esquema
+                    elif i + 1 < len(df) and pd.notna(df.iloc[i+1, j]):
+                        esquema = str(df.iloc[i+1, j]).strip() or esquema
+                elif 'comentario' in v:
+                    if j + 1 < len(df.columns) and pd.notna(df.iloc[i, j+1]):
+                        comentario_tabla = str(df.iloc[i, j+1]).strip()
+                    elif i + 1 < len(df) and pd.notna(df.iloc[i+1, j]):
+                        comentario_tabla = str(df.iloc[i+1, j]).strip()
+
+        if not nombre_tabla:
+            nombre_tabla = f"tabla_{base_datos.lower().replace(' ', '_')}"
+
+        script += f"USE {base_datos};\n\n"
+        script += f"-- Tabla: {esquema}.{nombre_tabla}\n"
+        if comentario_tabla:
+            script += f"-- Comentario: {comentario_tabla}\n"
+        script += f"CREATE TABLE {esquema}.{nombre_tabla} (\n"
+
+        # Encontrar headers
+        fila_headers, columnas_headers = encontrar_headers_en_contenido(df)
+
+        columnas_sql = []
+        claves_primarias = []
+        claves_foraneas = []  # (col, tabla_ref)
+
+        if fila_headers is not None and 'nombre_columna' in columnas_headers:
+            inicio_datos = fila_headers + 1
+            for i in range(inicio_datos, len(df)):
+                # Nombre columna
+                val_nombre = df.iloc[i, columnas_headers['nombre_columna']]
+                if pd.isna(val_nombre):
+                    continue
+                nombre_col = str(val_nombre).strip()
+                if not nombre_col or nombre_col.lower().startswith('unnamed'):
+                    continue
+
+                # Tipo
+                tipo_dato = 'character varying'
+                if 'tipo_dato' in columnas_headers:
+                    tv = df.iloc[i, columnas_headers['tipo_dato']]
+                    if pd.notna(tv):
+                        tipo_dato = str(tv).strip() or 'character varying'
+
+                # Tamaño
+                tamano_valor = None
+                for k in ('tamano', 'tamaño', 'tamanio', 'longitud', 'largo', 'size'):
+                    if k in columnas_headers:
+                        vv = df.iloc[i, columnas_headers[k]]
+                        if pd.notna(vv):
+                            tamano_valor = vv
+                            break
+                tamano_str = _parse_tamano(tamano_valor)
+                tipo_dato = _tipo_con_tamano(tipo_dato, tamano_str)
+
+                # Nullable
+                nullable = ""
+                if 'nullable' in columnas_headers:
+                    nv = df.iloc[i, columnas_headers['nullable']]
+                    if pd.notna(nv) and str(nv).strip().lower() in {'no', 'false', '0', 'n'}:
+                        nullable = "NOT NULL"
+
+                # Default
+                default_val = ""
+                if 'default' in columnas_headers:
+                    dv = df.iloc[i, columnas_headers['default']]
+                    if pd.notna(dv):
+                        d = str(dv).strip()
+                        if d and d.lower() not in {'null', 'none', 'nan'}:
+                            # funciones conocidas sin comillas
+                            if '(' in d or ')' in d or d.upper() in {'CURRENT_TIMESTAMP', 'NOW()', 'UUID()'}:
+                                default_val = f"DEFAULT {d}"
+                            else:
+                                default_val = f"DEFAULT '{d}'"
+
+                # Comentario inline
+                comentario = ""
+                if 'comentario' in columnas_headers:
+                    cv = df.iloc[i, columnas_headers['comentario']]
+                    if pd.notna(cv):
+                        c = str(cv).strip()
+                        if c and c.lower() not in {'comentario de campo', 'nan'}:
+                            comentario = f"COMMENT '{c}'"
+
+                columnas_sql.append(
+                    f"    {nombre_col} {tipo_dato} {nullable} {default_val} {comentario}".strip()
+                )
+
+                # PK
+                if 'primaria' in columnas_headers:
+                    pv = df.iloc[i, columnas_headers['primaria']]
+                    if pd.notna(pv) and str(pv).strip().lower() in {'si', 'sí', 'yes', '1', 'true', 'y'}:
+                        claves_primarias.append(nombre_col)
+
+                # FK
+                if 'foranea' in columnas_headers:
+                    fv = df.iloc[i, columnas_headers['foranea']]
+                    if pd.notna(fv) and str(fv).strip().lower() in {'si', 'sí', 'yes', '1', 'true', 'y'}:
+                        tabla_ref = None
+                        if 'referencia' in columnas_headers:
+                            rv = df.iloc[i, columnas_headers['referencia']]
+                            if pd.notna(rv):
+                                tabla_ref = str(rv).strip()
+                        if tabla_ref:
+                            claves_foraneas.append((nombre_col, tabla_ref))
+
+        # Cerrar definición de columnas
+        if columnas_sql:
+            script += ",\n".join(columnas_sql)
+        else:
+            script += "    -- No se encontraron definiciones de columnas válidas"
+
+        # Constraints PK
+        if claves_primarias:
+            script += f",\n    CONSTRAINT pk_{nombre_tabla} PRIMARY KEY ({', '.join(claves_primarias)})"
+
+        # Constraints FK
+        for col_fk, tabla_ref in claves_foraneas:
+            script += f",\n    CONSTRAINT fk_{col_fk} FOREIGN KEY ({col_fk})\n"
+            script += f"        REFERENCES {tabla_ref}(id) MATCH SIMPLE\n"
+            script += f"        ON UPDATE NO ACTION\n"
+            script += f"        ON DELETE NO ACTION"
+
+        script += "\n);\n\n"
+
+        # Comentario de tabla
+        if comentario_tabla:
+            script += f"COMMENT ON TABLE {esquema}.{nombre_tabla} IS '{comentario_tabla}';\n"
+
         return script
-        
+
     except Exception as e:
         print(f"ERROR generando script de tabla: {e}")
         import traceback
         traceback.print_exc()
         return f"-- Error generando script de tabla: {str(e)}\n-- Verifique que el archivo tenga la estructura correcta"
+
 
 
 def generar_script_permisos_usuarios(ruta_archivo):
@@ -921,8 +815,63 @@ def generar_script_sql(solicitud):
         if solicitud.ambientes_ejecucion:
             script += f"-- Ambientes de ejecución: {', '.join(solicitud.ambientes_ejecucion)}\n"
         return script
-    
+
     if solicitud.archivo_adjunto and solicitud.tipo_archivo == 'excel':
         return procesar_archivo_excel(solicitud)
-    
+
     return None
+
+
+# =========================
+# Helpers de tamaño
+# =========================
+def _parse_tamano(valor):
+    """
+    Devuelve un string válido para usar en paréntesis del tipo (ej. '20' o '10,2'),
+    o None si no es válido/proporcionado.
+    """
+    if valor is None or (isinstance(valor, float) and pd.isna(valor)):
+        return None
+
+    # Número simple
+    if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+        if float(valor).is_integer():
+            return str(int(valor))
+        # números flotantes no sirven como tamaño (excepto decimales NN,MM)
+        return None
+
+    s = str(valor).strip()
+    if not s:
+        return None
+
+    # limpiar separadores raros
+    s = s.replace(' ', '')
+    s = s.replace(';', ',').replace(':', ',').replace('/', ',')
+
+    # convertir "10.2" -> "10,2" si no hay comas
+    if s.count('.') == 1 and ',' not in s:
+        s = s.replace('.', ',')
+
+    # solo permitir: NN o NN,MM
+    if re.fullmatch(r'\d+(,\d+)?', s):
+        return s
+    return None
+
+
+def _tipo_con_tamano(tipo_dato, tamano_str):
+    """
+    Inserta (tamano) a tipos que lo aceptan si el tipo no trae paréntesis.
+    """
+    t = str(tipo_dato).strip()
+    if not t:
+        return t
+    if '(' in t:
+        return t
+    if not tamano_str:
+        return t
+
+    base = t.lower()
+    acepta = ('character varying', 'varchar', 'character', 'char', 'numeric', 'decimal')
+    if any(base.startswith(a) for a in acepta):
+        return f"{t}({tamano_str})"
+    return t
