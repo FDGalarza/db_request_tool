@@ -37,4 +37,8 @@ urlpatterns = [
     
     # Estadísticas (solo admin)
     path('estadisticas/', views.estadisticas_avanzadas, name='estadisticas_avanzadas'),
+
+    # Creación y descarga de plantilals
+    path("plantillas/", views.lista_plantillas, name="lista_plantillas"),
+    path("plantillas/descargar/<str:nombre_archivo>/", views.descargar_plantilla, name="descargar_plantilla"),
 ]

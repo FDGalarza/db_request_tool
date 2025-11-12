@@ -8,3 +8,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('tickets.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+# 👇 Esta línea habilita servir archivos media en modo desarrollo
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -2,10 +2,11 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import login, logout
 from django.contrib import messages
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, FileResponse, HttpResponseNotFound
 from django.core.paginator import Paginator
 from django.db.models import Q, Count
 from django.contrib.auth.models import User
+from django.conf import settings
 from .models import Solicitud, UserProfile, HistorialEstado, Comentario, ConfiguracionEstructuraExcel, Proyecto
 from .forms import (SolicitudForm, ComentarioForm, 
                    CambiarEstadoForm, EditarSolicitudForm, ValidarEstructuraForm,
@@ -13,8 +14,9 @@ from .forms import (SolicitudForm, ComentarioForm,
                    CrearUsuarioForm)
 from .utils import (procesar_archivo_excel, generar_script_sql, validar_estructura_excel,
                    enviar_correo_notificacion, enviar_correo_credenciales, 
-                   enviar_correo_aprobacion_lider, enviar_correo_cambio_estado, generar_credenciales_usuario)
+                   enviar_correo_aprobacion_lider, enviar_correo_cambio_estado, generar_credenciales_usuario, crear_plantilla_excel)
 import json
+import os
 
 # Decorador para verificar si el usuario es admin
 def es_admin(user):
@@ -308,8 +310,10 @@ def detalle_solicitud(request, pk):
                 estado_anterior = solicitud.estado
                 
                 # Validaciones especiales según requerimientos
+                print("Views.py 313")
                 if (solicitud.tipo_solicitud == 'crear_tabla' and nuevo_estado == 'finalizada' 
                     and not solicitud.script_sql_generado):
+                    print("Views.py 316")
                     messages.error(request, 'No se puede finalizar sin generar el script SQL primero.')
                     return redirect('detalle_solicitud', pk=pk)
                 
@@ -325,10 +329,11 @@ def detalle_solicitud(request, pk):
                 solicitud.estado = nuevo_estado
                 solicitud.save()
                 
-                # Enviar correo de cambio de estado (SIEMPRE según requerimiento 14)
+                # Enviar correo de cambio de estado
                 try:
-                    enviar_correo_cambio_estado(solicitud, estado_anterior, nuevo_estado, request.user, comentario_texto)
-                    correo_enviado = True
+                    if nuevo_estado != 'finalizada':
+                        enviar_correo_cambio_estado(solicitud, estado_anterior, nuevo_estado, request.user, comentario_texto)
+                        correo_enviado = True
                 except Exception as e:
                     correo_enviado = False
                     print(f"Error enviando correo de cambio de estado: {e}")
@@ -798,3 +803,50 @@ def logout_view(request):
     logout(request)
     messages.success(request, 'Has cerrado sesión exitosamente.')
     return redirect('login')
+
+def lista_plantillas(request):
+    """Muestra todas las plantillas disponibles para descarga."""
+    carpeta = os.path.join(settings.MEDIA_ROOT, "plantillas")
+    os.makedirs(carpeta, exist_ok=True)
+
+    plantillas = [
+        {
+            "nombre": "📄 Creación / Modificación de Tablas",
+            "archivo": "plantilla_creacion_modificacion_tablas_v2.xlsx",
+            "descripcion": "Define columnas, tipos de datos y comentarios.",
+        },
+        {
+            "nombre": "👤 Usuarios y Permisos",
+            "archivo": "plantilla_usuarios_permisos.xlsx",
+            "descripcion": "Para creación de usuarios y asignación de permisos.",
+        },
+        {
+            "nombre": "🗄️ Creación de Base de Datos",
+            "archivo": "plantilla_creacion_bd.xlsx",
+            "descripcion": "Estructura para registrar nuevas bases de datos.",
+            "generar": lambda: crear_plantilla_excel("crear_bd"),
+        },
+        {
+            "nombre": "📂 Creación de Esquemas",
+            "archivo": "plantilla_creacion_esquemas.xlsx",
+            "descripcion": "Define los esquemas dentro de las bases de datos.",
+            "generar": lambda: crear_plantilla_excel("crear_esquemas"),
+        },
+    ]
+
+    # Verificar existencia y generar si falta
+    for p in plantillas:
+        ruta = os.path.join(carpeta, p["archivo"])
+        if not os.path.exists(ruta) and "generar" in p:
+            p["generar"]()
+        p["ruta_relativa"] = f"{settings.MEDIA_URL}plantillas/{p['archivo']}"
+
+    return render(request, "plantillas/lista_plantillas.html", {"plantillas": plantillas})
+
+
+def descargar_plantilla(request, nombre_archivo):
+    """Permite descargar una plantilla específica."""
+    ruta = os.path.join(settings.MEDIA_ROOT, "plantillas", nombre_archivo)
+    if os.path.exists(ruta):
+        return FileResponse(open(ruta, "rb"), as_attachment=True, filename=nombre_archivo)
+    return HttpResponseNotFound("Archivo no encontrado.")

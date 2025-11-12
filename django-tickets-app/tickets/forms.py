@@ -2,12 +2,8 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from .models import Solicitud, UserProfile, Comentario, Proyecto
-
-# ELIMINAMOS CustomUserCreationForm - Ya no se permite registro público
-
 import json
-from django import forms
-from .models import Proyecto, User
+import os
 
 class ProyectoForm(forms.ModelForm):
     """Formulario para crear y editar proyectos"""
@@ -145,19 +141,85 @@ class SolicitudForm(forms.ModelForm):
         self.fields['nombre_branch'].required = False
         self.fields['entorno'].required = False
         self.fields['lider_proyecto'].required = False
+
+    def clean_archivo_adjunto(self):
+        """Validar extensión de archivo según tipo de solicitud"""
+        archivo = self.cleaned_data.get('archivo_adjunto')
+        tipo_solicitud = self.cleaned_data.get('tipo_solicitud')
+        
+        if not archivo or not tipo_solicitud:
+            return archivo
+        
+        # Obtener extensión del archivo
+        nombre_archivo = archivo.name.lower()
+        extension = os.path.splitext(nombre_archivo)[1]
+        
+        # Definir extensiones permitidas por tipo de solicitud
+        EXTENSIONES_PERMITIDAS = {
+            'crear_tabla'     : ['.xls', '.xlsx'],
+            'modificar_tabla' : ['.xls', '.xlsx'], 
+            'asignar_permisos': ['.xls', '.xlsx'],
+            'crear_usuarios'  : ['.xls', '.xlsx'],
+            'compilar_objetos': ['.sql'],
+            'crear_bd'        : ['.xls', '.xlsx'],
+            'crear_esquemas'  : ['.xls', '.xlsx'],
+        }
+        
+        # Validar si el tipo requiere archivo específico
+        if tipo_solicitud in EXTENSIONES_PERMITIDAS:
+            extensiones_validas = EXTENSIONES_PERMITIDAS[tipo_solicitud]
+            if extension not in extensiones_validas:
+                extensiones_str = ', '.join(extensiones_validas)
+                raise forms.ValidationError(
+                    f"Para {self.get_tipo_solicitud_display(tipo_solicitud)} debe subir un archivo con extensión: {extensiones_str}"
+                )
+        
+        return archivo
+
+    def get_tipo_solicitud_display(self, tipo_solicitud):
+        """Helper para obtener el display name del tipo de solicitud"""
+        for codigo, nombre in Solicitud.TIPOS_SOLICITUD:
+            if codigo == tipo_solicitud:
+                return nombre
+        return tipo_solicitud
     
     def clean(self):
-        cleaned_data = super().clean()
-        tipo_solicitud = cleaned_data.get('tipo_solicitud')
-        archivo_adjunto = cleaned_data.get('archivo_adjunto')
-        tipo_archivo = cleaned_data.get('tipo_archivo')
-        lider_proyecto = cleaned_data.get('lider_proyecto')
+        cleaned_data        = super().clean()
+        tipo_solicitud      = cleaned_data.get('tipo_solicitud')
+        archivo_adjunto     = cleaned_data.get('archivo_adjunto')
+        tipo_archivo        = cleaned_data.get('tipo_archivo')
+        lider_proyecto      = cleaned_data.get('lider_proyecto')
         ambientes_ejecucion = cleaned_data.get('ambientes_ejecucion')
-        proyecto = cleaned_data.get('proyecto')
+        proyecto            = cleaned_data.get('proyecto')
         
         # VALIDAR QUE SE SELECCIONE UN PROYECTO
         if not proyecto:
             raise forms.ValidationError("Debe seleccionar un proyecto para crear la solicitud.")
+        
+        # Definir tipos que requieren archivo obligatorio
+        TIPOS_REQUIEREN_ARCHIVO = [
+            'crear_tabla', 'modificar_tabla', 'asignar_permisos', 
+            'crear_usuarios', 'compilar_objetos', 'crear_bd',
+            'crear_esquemas'
+        ]
+
+        # Validar archivo obligatorio para ciertos tipos
+        if tipo_solicitud in TIPOS_REQUIEREN_ARCHIVO:
+            if not archivo_adjunto:
+                tipo_display = self.get_tipo_solicitud_display(tipo_solicitud)
+                if tipo_solicitud == 'compilar_objetos':
+                    raise forms.ValidationError(f"Para {tipo_display} debe subir un archivo SQL.")
+                else:
+                    raise forms.ValidationError(f"Para {tipo_display} debe subir un archivo Excel (.xls o .xlsx).")
+
+        # Validar tipo_archivo según tipo_solicitud
+        if tipo_solicitud in TIPOS_REQUIEREN_ARCHIVO and archivo_adjunto:
+            if tipo_solicitud == 'compilar_objetos':
+                if tipo_archivo != 'sql':
+                    raise forms.ValidationError("Para compilación de objetos debe seleccionar 'SQL' como tipo de archivo.")
+            elif tipo_solicitud in ['crear_tabla', 'modificar_tabla', 'asignar_permisos', 'crear_usuarios', 'crear_bd', 'crear_esquemas']:
+                if tipo_archivo != 'excel':
+                    raise forms.ValidationError("Para este tipo de solicitud debe seleccionar 'Excel' como tipo de archivo.")
         
         # Validar que para creación de usuarios y asignación de permisos se seleccione un líder
         if tipo_solicitud in ['crear_usuarios', 'asignar_permisos'] and not lider_proyecto:
@@ -243,6 +305,50 @@ class EditarSolicitudForm(forms.ModelForm):
         
         # Agregar texto de ayuda
         self.fields['archivo_adjunto'].help_text = "Dejar vacío para mantener el archivo actual"
+
+    def clean_archivo_adjunto(self):
+        """Validar extensión de archivo según tipo de solicitud"""
+        archivo = self.cleaned_data.get('archivo_adjunto')
+        tipo_solicitud = self.cleaned_data.get('tipo_solicitud')
+        
+        # Si no se sube nuevo archivo, no validar
+        if not archivo or not tipo_solicitud:
+            return archivo
+        
+        # Obtener extensión del archivo
+        nombre_archivo = archivo.name.lower()
+        extension = os.path.splitext(nombre_archivo)[1]
+        
+        # Definir extensiones permitidas por tipo de solicitud
+        EXTENSIONES_PERMITIDAS = {
+            'crear_tabla'     : ['.xls', '.xlsx'],
+            'modificar_tabla' : ['.xls', '.xlsx'], 
+            'asignar_permisos': ['.xls', '.xlsx'],
+            'crear_usuarios'  : ['.xls', '.xlsx'],
+            'compilar_objetos': ['.sql']         ,
+            'crear_bd'        : ['.xls', '.xlsx'],
+            'crear_esquemas'  : ['.xls', '.xlsx'],
+
+        }
+        
+        # Validar si el tipo requiere archivo específico
+        if tipo_solicitud in EXTENSIONES_PERMITIDAS:
+            extensiones_validas = EXTENSIONES_PERMITIDAS[tipo_solicitud]
+            if extension not in extensiones_validas:
+                extensiones_str = ', '.join(extensiones_validas)
+                raise forms.ValidationError(
+                    f"Para {self.get_tipo_solicitud_display(tipo_solicitud)} debe subir un archivo con extensión: {extensiones_str}"
+                )
+        
+        return archivo
+
+    def get_tipo_solicitud_display(self, tipo_solicitud):
+        """Helper para obtener el display name del tipo de solicitud"""
+        for codigo, nombre in Solicitud.TIPOS_SOLICITUD:
+            if codigo == tipo_solicitud:
+                return nombre
+        return tipo_solicitud
+        
 
 class ComentarioForm(forms.ModelForm):
     class Meta:
@@ -438,3 +544,4 @@ class FiltroSolicitudesForm(forms.Form):
         widget=forms.Select(attrs={'class': 'form-select'}),
         label="Tipo de Solicitud"
     )
+

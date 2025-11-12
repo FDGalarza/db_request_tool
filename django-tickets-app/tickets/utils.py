@@ -1,5 +1,11 @@
 import pandas as pd
 import openpyxl
+# =========================
+# Generador de plantillas Excel
+# =========================
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+
 from django.core.files.storage import default_storage
 from django.core.mail import EmailMessage
 from django.conf import settings
@@ -19,18 +25,11 @@ def procesar_archivo_excel(solicitud):
     Procesa archivos Excel según el tipo de solicitud y genera scripts SQL
     """
     if not solicitud.archivo_adjunto:
-        print("DEBUG: No hay archivo adjunto")
         return None
 
     try:
         file_path = solicitud.archivo_adjunto.path
-        print(f"DEBUG: Procesando archivo: {file_path}")
-
         df = pd.read_excel(file_path)
-        print(f"DEBUG: DataFrame shape: {df.shape}")
-        print(f"DEBUG: Columnas encontradas: {list(df.columns)}")
-        print("DEBUG: Primeras 5 filas:")
-        print(df.head())
 
         if solicitud.tipo_solicitud in ['crear_tabla', 'modificar_tabla']:
             return generar_script_tabla(df, solicitud.tipo_solicitud, solicitud.base_datos_aplicacion)
@@ -40,7 +39,6 @@ def procesar_archivo_excel(solicitud):
             return generar_script_bd_esquemas(df, solicitud.tipo_solicitud, solicitud.base_datos_aplicacion)
 
     except Exception as e:
-        print(f"ERROR procesando archivo Excel: {e}")
         import traceback
         traceback.print_exc()
         return f"-- Error procesando archivo: {str(e)}"
@@ -132,7 +130,7 @@ def validar_estructura_crear_usuarios(df):
     if columnas_faltantes:
         return False, f"Faltan las columnas de permisos: {', '.join(columnas_faltantes)}"
     
-    # También puedes validar que las celdas superiores estén llenas, si estás usando múltiples hojas
+    # validar que las celdas superiores estén llenas, si estás usando múltiples hojas
     if df.empty or df.shape[0] == 0:
         return False, "El archivo está vacío o no contiene datos en la tabla de permisos."
     
@@ -177,7 +175,7 @@ def buscar_columnas_flexibles(df, columnas_requeridas):
 
 def validar_estructura_crear_tabla(df):
     """
-    Valida la estructura específica para creación de tablas - MEJORADA para buscar en contenido
+    Valida la estructura específica para creación de tablas - para buscar en contenido
     """
     try:
         # Verificar que tenga datos
@@ -221,15 +219,16 @@ def encontrar_headers_en_contenido(df):
     # Mapeo de sinónimos -> clave
     synonyms = {
         "nombre_columna": {"nombre de la columna", "nombre_columna", "columna", "campo"},
-        "accion": {"accion", "acción", "operacion", "operación"},
-        "tipo_dato": {"tipo de dato", "tipo_dato", "tipo dato", "tipo"},
-        "nullable": {"es nullable", "nullable", "acepta null", "null"},
-        "primaria": {"es llave primaria", "llave primaria", "clave primaria", "primary key", "pk"},
-        "default": {"por defecto", "default", "valor defecto", "por por defecto", "defecto"},
-        "foranea": {"es foranea", "foranea", "foreign key", "fk", "foránea"},
+        "accion": {"accion", "acción", "operacion", "operación", "action"},
+        "tipo_dato": {"tipo de dato", "tipo_dato", "tipo dato", "tipo", "data type"},
+        "tamano": {"tamano", "tamaño", "tamanio", "longitud", "largo", "size", "length"},
+        "nullable": {"es nullable", "nullable", "acepta null", "null", "permite null"},
+        "primaria": {"es llave primaria", "Es llave primaria", "llave primaria", "clave primaria", "primary key", "pk"},
+        "nombre_pk": {"nombre pk", "nombre de la pk", "pk name"},
+        "default": {"por defecto", "default", "valor defecto", "por por defecto", "defecto", "valor por defecto"},
+        "foranea": {"es foranea", "Es foranea", "foranea", "foreign key", "fk", "foránea", "es foránea"},
         "referencia": {"tabla referencia", "referencia", "tabla_referencia", "tabla ref", "ref"},
-        "comentario": {"comentario de campo", "comentario campo", "comentario", "descripcion", "descripción"},
-        "tamano": {"tamano", "tamaño", "tamanio", "longitud", "largo", "size"}
+        "comentario": {"comentario de campo", "comentario campo", "comentario", "descripcion", "descripción"}
     }
 
     def normalize(s):
@@ -290,7 +289,7 @@ def buscar_columnas_crear_tabla(df):
     """
     Busca columnas para crear_tabla - MEJORADA para buscar en contenido
     """
-    # Usar la nueva función que busca en el contenido
+    # invoca función que busca en el contenido
     fila_headers, columnas_headers = encontrar_headers_en_contenido(df)
     return columnas_headers
 
@@ -381,17 +380,17 @@ def validar_tipo_columna(serie, tipo_esperado):
 def generar_script_tabla(df, tipo_solicitud, base_datos):
     """
     Genera script SQL para creación o modificación de tablas.
-    Usa 'Tamaño' (o sinónimos) cuando aplique.
+    ACTUALIZADO: Maneja 'Acción' y 'Tamaño' de la nueva estructura.
     """
     try:
         script = f"-- Script generado automáticamente para {tipo_solicitud}\n"
         script += f"-- Base de datos/Aplicación: {base_datos}\n"
         script += f"-- Fecha de generación: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
 
-        # Detectar nombre de tabla y comentario en primeras filas
+        # Detectar nombre de tabla, esquema y comentario en primeras filas
         nombre_tabla = None
         comentario_tabla = None
-        esquema = "public"  # si tu plantilla trae "Esquema", se podría leer similar al nombre/comentario
+        esquema = "public"  # default
 
         for i in range(min(6, len(df))):
             for j in range(len(df.columns)):
@@ -399,6 +398,7 @@ def generar_script_tabla(df, tipo_solicitud, base_datos):
                 if pd.isna(valor):
                     continue
                 v = str(valor).strip().lower()
+                
                 if v in {'nombre tabla', 'nombre_tabla'}:
                     # siguiente celda (derecha) o siguiente fila misma columna
                     if j + 1 < len(df.columns) and pd.notna(df.iloc[i, j+1]):
@@ -419,121 +419,173 @@ def generar_script_tabla(df, tipo_solicitud, base_datos):
         if not nombre_tabla:
             nombre_tabla = f"tabla_{base_datos.lower().replace(' ', '_')}"
 
-        script += f"USE {base_datos};\n\n"
-        script += f"-- Tabla: {esquema}.{nombre_tabla}\n"
-        if comentario_tabla:
-            script += f"-- Comentario: {comentario_tabla}\n"
-        script += f"CREATE TABLE {esquema}.{nombre_tabla} (\n"
-
         # Encontrar headers
         fila_headers, columnas_headers = encontrar_headers_en_contenido(df)
 
-        columnas_sql = []
-        claves_primarias = []
-        claves_foraneas = []  # (col, tabla_ref)
+        if tipo_solicitud == 'crear_tabla':
+            script += f"USE {base_datos};\n\n"
+            script += f"-- Tabla: {esquema}.{nombre_tabla}\n"
+            if comentario_tabla:
+                script += f"-- Comentario: {comentario_tabla}\n"
+            script += f"CREATE TABLE {esquema}.{nombre_tabla} (\n"
 
-        if fila_headers is not None and 'nombre_columna' in columnas_headers:
-            inicio_datos = fila_headers + 1
-            for i in range(inicio_datos, len(df)):
-                # Nombre columna
-                val_nombre = df.iloc[i, columnas_headers['nombre_columna']]
-                if pd.isna(val_nombre):
-                    continue
-                nombre_col = str(val_nombre).strip()
-                if not nombre_col or nombre_col.lower().startswith('unnamed'):
-                    continue
+            columnas_sql = []
+            claves_primarias = []
+            claves_foraneas = []  # (col, tabla_ref)
 
-                # Tipo
-                tipo_dato = 'character varying'
-                if 'tipo_dato' in columnas_headers:
-                    tv = df.iloc[i, columnas_headers['tipo_dato']]
-                    if pd.notna(tv):
-                        tipo_dato = str(tv).strip() or 'character varying'
+            if fila_headers is not None and 'nombre_columna' in columnas_headers:
+                inicio_datos = fila_headers + 1
+                for i in range(inicio_datos, len(df)):
+                    # Nombre columna
+                    val_nombre = df.iloc[i, columnas_headers['nombre_columna']]
+                    if pd.isna(val_nombre):
+                        continue
+                    nombre_col = str(val_nombre).strip()
+                    if not nombre_col or nombre_col.lower().startswith('unnamed'):
+                        continue
 
-                # Tamaño
-                tamano_valor = None
-                for k in ('tamano', 'tamaño', 'tamanio', 'longitud', 'largo', 'size'):
-                    if k in columnas_headers:
-                        vv = df.iloc[i, columnas_headers[k]]
-                        if pd.notna(vv):
-                            tamano_valor = vv
-                            break
-                tamano_str = _parse_tamano(tamano_valor)
-                tipo_dato = _tipo_con_tamano(tipo_dato, tamano_str)
+                    # Tipo
+                    tipo_dato = 'character varying'
+                    if 'tipo_dato' in columnas_headers:
+                        tv = df.iloc[i, columnas_headers['tipo_dato']]
+                        if pd.notna(tv):
+                            tipo_dato = str(tv).strip() or 'character varying'
 
-                # Nullable
-                nullable = ""
-                if 'nullable' in columnas_headers:
-                    nv = df.iloc[i, columnas_headers['nullable']]
-                    if pd.notna(nv) and str(nv).strip().lower() in {'no', 'false', '0', 'n'}:
-                        nullable = "NOT NULL"
+                    # Tamaño
+                    tamano_valor = None
+                    if 'tamano' in columnas_headers:
+                        tv = df.iloc[i, columnas_headers['tamano']]
+                        if pd.notna(tv):
+                            tamano_valor = tv
+                    
+                    tamano_str = _parse_tamano(tamano_valor)
+                    tipo_dato = _tipo_con_tamano(tipo_dato, tamano_str)
 
-                # Default
-                default_val = ""
-                if 'default' in columnas_headers:
-                    dv = df.iloc[i, columnas_headers['default']]
-                    if pd.notna(dv):
-                        d = str(dv).strip()
-                        if d and d.lower() not in {'null', 'none', 'nan'}:
-                            # funciones conocidas sin comillas
-                            if '(' in d or ')' in d or d.upper() in {'CURRENT_TIMESTAMP', 'NOW()', 'UUID()'}:
-                                default_val = f"DEFAULT {d}"
-                            else:
-                                default_val = f"DEFAULT '{d}'"
+                    # Nullable
+                    nullable = ""
+                    if 'nullable' in columnas_headers:
+                        nv = df.iloc[i, columnas_headers['nullable']]
+                        if pd.notna(nv) and str(nv).strip().lower() in {'no', 'false', '0', 'n'}:
+                            nullable = "NOT NULL"
 
-                # Comentario inline
-                comentario = ""
-                if 'comentario' in columnas_headers:
-                    cv = df.iloc[i, columnas_headers['comentario']]
-                    if pd.notna(cv):
-                        c = str(cv).strip()
-                        if c and c.lower() not in {'comentario de campo', 'nan'}:
-                            comentario = f"COMMENT '{c}'"
+                    # Default
+                    default_val = ""
+                    if 'default' in columnas_headers:
+                        dv = df.iloc[i, columnas_headers['default']]
+                        if pd.notna(dv):
+                            d = str(dv).strip()
+                            if d and d.lower() not in {'null', 'none', 'nan'}:
+                                # funciones conocidas sin comillas
+                                if '(' in d or ')' in d or d.upper() in {'CURRENT_TIMESTAMP', 'NOW()', 'UUID()'}:
+                                    default_val = f"DEFAULT {d}"
+                                else:
+                                    default_val = f"DEFAULT '{d}'"
 
-                columnas_sql.append(
-                    f"    {nombre_col} {tipo_dato} {nullable} {default_val} {comentario}".strip()
-                )
+                    # Comentario inline
+                    comentario = ""
+                    if 'comentario' in columnas_headers:
+                        cv = df.iloc[i, columnas_headers['comentario']]
+                        if pd.notna(cv):
+                            c = str(cv).strip()
+                            if c and c.lower() not in {'comentario de campo', 'nan'}:
+                                comentario = f"COMMENT '{c}'"
 
-                # PK
-                if 'primaria' in columnas_headers:
-                    pv = df.iloc[i, columnas_headers['primaria']]
-                    if pd.notna(pv) and str(pv).strip().lower() in {'si', 'sí', 'yes', '1', 'true', 'y'}:
-                        claves_primarias.append(nombre_col)
+                    columnas_sql.append(
+                        f"    {nombre_col} {tipo_dato} {nullable} {default_val} {comentario}".strip()
+                    )
 
-                # FK
-                if 'foranea' in columnas_headers:
-                    fv = df.iloc[i, columnas_headers['foranea']]
-                    if pd.notna(fv) and str(fv).strip().lower() in {'si', 'sí', 'yes', '1', 'true', 'y'}:
-                        tabla_ref = None
-                        if 'referencia' in columnas_headers:
-                            rv = df.iloc[i, columnas_headers['referencia']]
-                            if pd.notna(rv):
-                                tabla_ref = str(rv).strip()
-                        if tabla_ref:
-                            claves_foraneas.append((nombre_col, tabla_ref))
+                    # PK
+                    
+                    if 'primaria' in columnas_headers:
+                        pv = df.iloc[i, columnas_headers['primaria']]
+                        if pd.notna(pv) and str(pv).strip().lower() in {'si', 'sí', 'yes', '1', 'true', 'y'}:
+                            
+                            claves_primarias.append(nombre_col)
 
-        # Cerrar definición de columnas
-        if columnas_sql:
-            script += ",\n".join(columnas_sql)
-        else:
-            script += "    -- No se encontraron definiciones de columnas válidas"
+                    # FK
+                    if 'foranea' in columnas_headers:
+                        fv = df.iloc[i, columnas_headers['foranea']]
+                        if pd.notna(fv) and str(fv).strip().lower() in {'si', 'sí', 'yes', '1', 'true', 'y'}:
+                            tabla_ref = None
+                            if 'referencia' in columnas_headers:
+                                rv = df.iloc[i, columnas_headers['referencia']]
+                                if pd.notna(rv):
+                                    tabla_ref = str(rv).strip()
+                            if tabla_ref:
+                                claves_foraneas.append((nombre_col, tabla_ref))
 
-        # Constraints PK
-        if claves_primarias:
-            script += f",\n    CONSTRAINT pk_{nombre_tabla} PRIMARY KEY ({', '.join(claves_primarias)})"
+            # Cerrar definición de columnas
+            if columnas_sql:
+                script += ",\n".join(columnas_sql)
+            else:
+                script += "    -- No se encontraron definiciones de columnas válidas"
 
-        # Constraints FK
-        for col_fk, tabla_ref in claves_foraneas:
-            script += f",\n    CONSTRAINT fk_{col_fk} FOREIGN KEY ({col_fk})\n"
-            script += f"        REFERENCES {tabla_ref}(id) MATCH SIMPLE\n"
-            script += f"        ON UPDATE NO ACTION\n"
-            script += f"        ON DELETE NO ACTION"
+            # Constraints PK
+            if claves_primarias:
+                script += f",\n    CONSTRAINT pk_{nombre_tabla} PRIMARY KEY ({', '.join(claves_primarias)})"
 
-        script += "\n);\n\n"
+            # no m FK
+            for col_fk, tabla_ref in claves_foraneas:
+                script += f",\n    CONSTRAINT fk_{col_fk} FOREIGN KEY ({col_fk})\n"
+                script += f"        REFERENCES {tabla_ref}(id) MATCH SIMPLE\n"
+                script += f"        ON UPDATE NO ACTION\n"
+                script += f"        ON DELETE NO ACTION"
 
-        # Comentario de tabla
-        if comentario_tabla:
-            script += f"COMMENT ON TABLE {esquema}.{nombre_tabla} IS '{comentario_tabla}';\n"
+            script += "\n);\n\n"
+
+            # Comentario de tabla
+            if comentario_tabla:
+                script += f"COMMENT ON TABLE {esquema}.{nombre_tabla} IS '{comentario_tabla}';\n"
+
+        elif tipo_solicitud == 'modificar_tabla':
+            # NUEVO: Manejo de modificaciones con columna 'Acción'
+            script += f"USE {base_datos};\n\n"
+            script += f"-- Modificaciones para tabla: {esquema}.{nombre_tabla}\n\n"
+
+            if fila_headers is not None and 'nombre_columna' in columnas_headers:
+                inicio_datos = fila_headers + 1
+                for i in range(inicio_datos, len(df)):
+                    # Nombre columna
+                    val_nombre = df.iloc[i, columnas_headers['nombre_columna']]
+                    if pd.isna(val_nombre):
+                        continue
+                    nombre_col = str(val_nombre).strip()
+                    if not nombre_col:
+                        continue
+
+                    # Acción (NUEVO)
+                    accion = 'ADD'  # default
+                    if 'accion' in columnas_headers:
+                        av = df.iloc[i, columnas_headers['accion']]
+                        if pd.notna(av):
+                            accion = str(av).strip().upper()
+
+                    # Tipo
+                    tipo_dato = 'character varying'
+                    if 'tipo_dato' in columnas_headers:
+                        tv = df.iloc[i, columnas_headers['tipo_dato']]
+                        if pd.notna(tv):
+                            tipo_dato = str(tv).strip() or 'character varying'
+
+                    # Tamaño
+                    tamano_valor = None
+                    if 'tamano' in columnas_headers:
+                        tv = df.iloc[i, columnas_headers['tamano']]
+                        if pd.notna(tv):
+                            tamano_valor = tv
+                    
+                    tamano_str = _parse_tamano(tamano_valor)
+                    tipo_dato = _tipo_con_tamano(tipo_dato, tamano_str)
+
+                    # Generar SQL según la acción
+                    if accion in ['ADD', 'AGREGAR']:
+                        script += f"ALTER TABLE {esquema}.{nombre_tabla} ADD COLUMN {nombre_col} {tipo_dato};\n"
+                    elif accion in ['DROP', 'ELIMINAR', 'DELETE']:
+                        script += f"ALTER TABLE {esquema}.{nombre_tabla} DROP COLUMN {nombre_col};\n"
+                    elif accion in ['MODIFY', 'MODIFICAR', 'ALTER']:
+                        script += f"ALTER TABLE {esquema}.{nombre_tabla} MODIFY COLUMN {nombre_col} {tipo_dato};\n"
+                    else:
+                        script += f"-- Acción desconocida '{accion}' para columna {nombre_col}\n"
 
         return script
 
@@ -542,8 +594,6 @@ def generar_script_tabla(df, tipo_solicitud, base_datos):
         import traceback
         traceback.print_exc()
         return f"-- Error generando script de tabla: {str(e)}\n-- Verifique que el archivo tenga la estructura correcta"
-
-
 
 def generar_script_permisos_usuarios(ruta_archivo):
     # Leer archivo sin header para analizar filas
@@ -686,7 +736,7 @@ def enviar_correo_notificacion(solicitud, estado, comentario=""):
         )
         email.content_subtype = 'html'
         
-        if solicitud.script_sql_generado:
+        if solicitud.script_sql_generado and solicitud.tipo_solicitud in ['crear_tabla', 'modificar_tabla']:
             email.attach(
                 f'script_solicitud_{solicitud.id}.sql',
                 solicitud.script_sql_generado,
@@ -785,7 +835,7 @@ def enviar_correo_cambio_estado(solicitud, estado_anterior, estado_nuevo, usuari
             'comentario': comentario,
         }
         
-        html_content = render_to_string('emails/aprobacion_lider.html', context)
+        html_content = render_to_string('emails/notificacion_resolucion.html', context)
         
         email = EmailMessage(
             subject=subject,
@@ -875,3 +925,66 @@ def _tipo_con_tamano(tipo_dato, tamano_str):
     if any(base.startswith(a) for a in acepta):
         return f"{t}({tamano_str})"
     return t
+
+def crear_plantilla_excel(tipo_solicitud):
+    """
+    Genera una plantilla Excel base con formato visual uniforme
+    para tipos de solicitud: crear_bd, crear_esquemas, crear_tabla, etc.
+    """
+    # Ruta base de guardado
+    output_dir = os.path.join(settings.MEDIA_ROOT, "plantillas")
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Crear workbook
+    wb = Workbook()
+    ws = wb.active
+
+    # Configuración según tipo
+    if tipo_solicitud == "crear_bd":
+        titulo = "Plantilla Creación de Base de Datos"
+        headers = ["Nombre BD", "Charset", "Collation"]
+        filename = "plantilla_creacion_bd.xlsx"
+    elif tipo_solicitud == "crear_esquemas":
+        titulo = "Plantilla Creación de Esquemas"
+        headers = ["Nombre Esquema", "Propietario"]
+        filename = "plantilla_creacion_esquemas.xlsx"
+    else:
+        raise ValueError("Tipo de solicitud no soportado para generación de plantilla")
+
+    # Encabezado principal
+    ws.merge_cells("A1:C1")
+    ws["A1"] = titulo
+    ws["A1"].font = Font(bold=True, size=14)
+    ws["A1"].alignment = Alignment(horizontal="center")
+
+    # Fila de headers
+    ws.append(headers)
+    _formatear_encabezados(ws)
+
+    # Ajustar ancho de columnas (ignorando la fila del título)
+    for idx, col_cells in enumerate(ws.iter_cols(min_row=2, max_row=2), start=1):
+        col_letter = ws.cell(row=2, column=idx).column_letter
+        ws.column_dimensions[col_letter].width = 25
+
+    # Guardar archivo
+    path = os.path.join(output_dir, filename)
+    wb.save(path)
+    return path
+
+
+def _formatear_encabezados(ws):
+    """Aplica formato visual uniforme a los encabezados"""
+    bold = Font(bold=True)
+    center = Alignment(horizontal="center", vertical="center")
+    border = Border(
+        left=Side(style="thin"),
+        right=Side(style="thin"),
+        top=Side(style="thin"),
+        bottom=Side(style="thin"),
+    )
+    fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+    for cell in ws[2]:
+        cell.font = bold
+        cell.alignment = center
+        cell.border = border
+        cell.fill = fill

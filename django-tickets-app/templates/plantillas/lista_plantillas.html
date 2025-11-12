@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+  <h2 class="mb-4">📂 Plantillas Disponibles</h2>
+  <div class="row">
+    {% for p in plantillas %}
+      <div class="col-md-6 mb-4">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <h5 class="card-title">{{ p.nombre }}</h5>
+            <p class="card-text text-muted">{{ p.descripcion }}</p>
+            <a href="{{ p.ruta_relativa }}" class="btn btn-outline-primary btn-sm" download>
+              <i class="bi bi-download"></i> Descargar
+            </a>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
