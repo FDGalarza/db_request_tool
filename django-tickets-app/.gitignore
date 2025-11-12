@@ -1,0 +1,82 @@
+# ======================================
+# ARCHIVOS DE PYTHON Y CACHÉ
+# ======================================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ======================================
+# ENTORNOS Y VARIABLES
+# ======================================
+venv/
+.env
+*.env
+
+# ======================================
+# BASE DE DATOS Y MIGRACIONES
+# ======================================
+db.sqlite3
+*/migrations/
+!*/migrations/__init__.py
+
+# ======================================
+# LOGS, TEMPORALES Y ARCHIVOS DE SISTEMA
+# ======================================
+*.log
+*.tmp
+*.bak
+*.swp
+*.pot
+*.pyo
+*.pyd
+*.coverage
+*.pyproj
+*.suo
+*.cache
+*.pid
+*.seed
+*.pid.lock
+.DS_Store
+Thumbs.db
+
+# ======================================
+# ARCHIVOS DE EDITORES
+# ======================================
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ======================================
+# ARCHIVOS ZIP / EXPORTADOS / TEMPORALES
+# ======================================
+*.zip
+*.tar
+*.gz
+*.rar
+
+# ======================================
+# CARPETA MEDIA (ARCHIVOS DE USUARIOS)
+# ======================================
+
+# Ignorar todo dentro de media/
+media/*
+
+# ✅ Mantener la carpeta de plantillas y su contenido
+!media/plantillas/
+!media/plantillas/**
+
+# ✅ Mantener la carpeta de solicitudes vacía
+!media/solicitudes/
+media/solicitudes/*
+!media/solicitudes/.gitkeep
+
+# ✅ Mantener estructura base de media
+!media/.gitkeep
+
+# ======================================
+# ARCHIVOS DE COMPILACIÓN FRONTEND (si existieran)
+# ======================================
+node_modules/
+build/
+dist/
