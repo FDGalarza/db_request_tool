@@ -374,6 +374,16 @@ def detalle_solicitud(request, pk):
     mostrar_script = solicitud.puede_ver_script(request.user)
     puede_generar_script = solicitud.puede_generar_script(request.user)
     puede_descargar_script = solicitud.puede_descargar_script(request.user)
+
+    if solicitud.tipo_solicitud in Solicitud.TIPOS_COMPILACION:
+        mostrar_script = False           # No mostrar botón ni vista del script
+        puede_generar_script = False     # No permitir generar script
+        # Mantener descarga si hay archivo adjunto
+        puede_descargar_script = solicitud.archivo_adjunto is not None
+    else:
+        mostrar_script = solicitud.puede_ver_script(request.user)
+        puede_generar_script = solicitud.puede_generar_script(request.user)
+        puede_descargar_script = solicitud.puede_descargar_script(request.user)
     
     context = {
         'solicitud': solicitud,

@@ -21,6 +21,7 @@ import re
 # Lectura del Excel
 # =========================
 def procesar_archivo_excel(solicitud):
+    
     """
     Procesa archivos Excel según el tipo de solicitud y genera scripts SQL
     """
@@ -672,35 +673,69 @@ def generar_script_bd_esquemas(df, tipo_solicitud, base_datos):
     """
     Genera script SQL para creación de bases de datos y esquemas
     """
+
     try:
-        script = f"-- Script generado automáticamente para {tipo_solicitud}\n"
-        script += f"-- Aplicación: {base_datos}\n"
-        script += f"-- Fecha de generación: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-        
+        # Encabezado del script
+        script = (
+            f"-- Script generado automáticamente para {tipo_solicitud}\n"
+            f"-- Aplicación: {base_datos}\n"
+            f"-- Fecha de generación: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        )
+
+        # ===========================================
+        # 🔹 CASO: CREACIÓN DE BASES DE DATOS
+        # ===========================================
         if tipo_solicitud == 'crear_bd':
-            for _, row in df.iterrows():
-                if pd.isna(row.get('nombre_bd')):
+
+            # Detectar columnas que comienzan con texto tipo "Plantilla ..."
+            if df.columns[0].startswith("Plantilla"):
+                df.columns = ['Nombre BD', 'Charset', 'Collation']
+                df = df.dropna(how='all')  # quitar filas completamente vacías
+
+            for index, row in df.iterrows():
+
+                nombre_bd = row.get('Nombre BD')
+                if not nombre_bd or pd.isna(nombre_bd) or index < 1:
+                    print(f" → Fila {index} ignorada (vacía o inválida)")
                     continue
-                    
-                nombre_bd = row['nombre_bd']
-                charset = row.get('charset', 'utf8mb4')
-                collation = row.get('collation', 'utf8mb4_unicode_ci')
-                
-                script += f"CREATE DATABASE {nombre_bd} "
-                script += f"CHARACTER SET {charset} COLLATE {collation};\n"
-                
-        else:  # crear_esquemas
-            for _, row in df.iterrows():
-                if pd.isna(row.get('nombre_esquema')):
+
+                charset = row.get('Charset', 'utf8mb4')
+                collation = row.get('Collation', 'utf8mb4_unicode_ci')
+
+                script += (
+                    f"CREATE DATABASE {nombre_bd} "
+                    f"CHARACTER SET {charset} COLLATE {collation};\n"
+                )
+
+        # ===========================================
+        # 🔹 CASO: CREACIÓN DE ESQUEMAS
+        # ===========================================
+        elif tipo_solicitud == 'crear_esquemas':
+            print(f"ANTES FOR RECORRE ROW: {tipo_solicitud}")
+
+             # Detectar columnas que comienzan con texto tipo "Plantilla ..."
+            if df.columns[0].startswith("Plantilla"):
+                df.columns = ['Nombre Esquema', 'Propietario']
+                df = df.dropna(how='all')  # quitar filas completamente vacías
+
+            for index, row in df.iterrows():
+                print(f"ENTRA AL FOR (fila {index}): {row.to_dict()}")
+
+                nombre_esquema = row.get('Nombre Esquema')
+                if not nombre_esquema or pd.isna(nombre_esquema) or index < 1:
+                    print(f" → Fila {index} ignorada (vacía o inválida)")
                     continue
-                    
-                nombre_esquema = row['nombre_esquema']
-                propietario = row.get('propietario', 'admin')
-                
+
+
+                propietario = row.get('Propietario', 'admin')
+
                 script += f"CREATE SCHEMA {nombre_esquema} AUTHORIZATION {propietario};\n"
-        
+
+        else:
+            print(f"⚠️ Tipo de solicitud no reconocido: {tipo_solicitud}")
+
         return script
-        
+
     except Exception as e:
         return f"-- Error generando script de BD/esquemas: {str(e)}"
 
@@ -736,7 +771,7 @@ def enviar_correo_notificacion(solicitud, estado, comentario=""):
         )
         email.content_subtype = 'html'
         
-        if solicitud.script_sql_generado and solicitud.tipo_solicitud in ['crear_tabla', 'modificar_tabla']:
+        if solicitud.script_sql_generado and solicitud.tipo_solicitud in ['crear_tabla', 'modificar_tabla', 'crear_bd']:
             email.attach(
                 f'script_solicitud_{solicitud.id}.sql',
                 solicitud.script_sql_generado,
