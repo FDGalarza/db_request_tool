@@ -49,6 +49,20 @@
                         {% if solicitud.tipo_archivo %}
                             <p><strong>Tipo de Archivo:</strong> {{ solicitud.get_tipo_archivo_display }}</p>
                         {% endif %}
+                        
+                        <!-- Informacion de ticket de referencia para compilar_scripts -->
+                        {% if solicitud.ticket_referencia %}
+                            <p><strong>Ticket de Referencia:</strong> 
+                                <a href="{% url 'detalle_solicitud' solicitud.ticket_referencia.pk %}">
+                                    #{{ solicitud.ticket_referencia.id }} - {{ solicitud.ticket_referencia.get_tipo_solicitud_display }}
+                                </a>
+                            </p>
+                            <p><strong>Ambiente de Compilacion:</strong> 
+                                <span class="badge bg-{% if solicitud.tipo_solicitud == 'compilar_scripts_qa' %}warning{% else %}danger{% endif %}">
+                                    {{ solicitud.get_ambiente_compilacion }}
+                                </span>
+                            </p>
+                        {% endif %}
                     </div>
                 </div>
                 
@@ -127,6 +141,42 @@
                             <strong>Archivo Excel adjunto:</strong> El script SQL será generado por el equipo de Base de Datos.
                         </div>
                     </div>
+                {% endif %}
+                
+                {% if solicitud.tipo_solicitud == 'compilar_scripts_qa' or solicitud.tipo_solicitud == 'compilar_scripts_pu' %}
+                    {% if solicitud.ticket_referencia and solicitud.ticket_referencia.script_sql_generado %}
+                        {% if solicitud.estado == 'aprobada' or solicitud.estado == 'finalizada' %}
+                            {% if user_profile.role == 'db' or user_profile.role == 'admin' %}
+                                <div class="mt-4">
+                                    <div class="alert alert-success">
+                                        <i class="fas fa-check-circle"></i>
+                                        <strong>Solicitud aprobada por el lider</strong> - Script disponible para compilacion en {{ solicitud.get_ambiente_compilacion }}
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6><i class="fas fa-code"></i> Script SQL a Compilar (del Ticket #{{ solicitud.ticket_referencia.id }}):</h6>
+                                        <a href="{% url 'descargar_script_sql' solicitud.ticket_referencia.pk %}" class="btn btn-sm btn-success">
+                                            <i class="fas fa-download"></i> Descargar SQL
+                                        </a>
+                                    </div>
+                                    <pre class="bg-light p-3 border rounded" style="max-height: 400px; overflow-y: auto;"><code>{{ solicitud.ticket_referencia.script_sql_generado }}</code></pre>
+                                </div>
+                            {% endif %}
+                        {% elif solicitud.estado == 'pendiente_aprobacion_lider' %}
+                            <div class="mt-4">
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-clock"></i>
+                                    <strong>Pendiente de aprobacion:</strong> El script se mostrara una vez que el lider apruebe esta solicitud.
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% elif solicitud.ticket_referencia and not solicitud.ticket_referencia.script_sql_generado %}
+                        <div class="mt-4">
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <strong>Error:</strong> El ticket de referencia #{{ solicitud.ticket_referencia.id }} no tiene un script SQL generado.
+                            </div>
+                        </div>
+                    {% endif %}
                 {% endif %}
             </div>
         </div>

@@ -83,6 +83,16 @@ class SolicitudForm(forms.ModelForm):
         help_text="Requerido para creación de usuarios y asignación de permisos"
     )
     
+    # AGREGAR ESTE CAMPO:
+    ticket_referencia = forms.ModelChoiceField(
+        queryset=Solicitud.objects.none(),
+        required=False,
+        empty_label="Seleccionar ticket de referencia...",
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        label="Ticket de Referencia (Desarrollo)",
+        help_text="Solicitud original en desarrollo que contiene los scripts a compilar"
+    )
+    
     class Meta:
         model = Solicitud
         fields = [
@@ -141,6 +151,14 @@ class SolicitudForm(forms.ModelForm):
         self.fields['nombre_branch'].required = False
         self.fields['entorno'].required = False
         self.fields['lider_proyecto'].required = False
+
+        # Filtrar tickets de referencia - solo solicitudes finalizadas de tipo BD
+        self.fields['ticket_referencia'].queryset = Solicitud.objects.filter(
+            estado='finalizada',
+            tipo_solicitud__in=['crear_tabla', 'modificar_tabla', 'asignar_permisos', 
+                               'crear_usuarios', 'crear_bd', 'crear_esquemas']
+        ).order_by('-fecha_creacion')
+
 
     def clean_archivo_adjunto(self):
         """Validar extensión de archivo según tipo de solicitud"""
@@ -232,9 +250,19 @@ class SolicitudForm(forms.ModelForm):
             if tipo_archivo != 'sql':
                 raise forms.ValidationError("Para compilación de objetos debe subir un archivo SQL.")
         
-        # Validar ambientes para compilación de scripts
-        if tipo_solicitud in ['compilar_scripts_qa', 'compilar_scripts_pu'] and not ambientes_ejecucion:
-            raise forms.ValidationError("Debe seleccionar al menos un ambiente para la compilación de scripts.")
+                # Validar ticket de referencia y líder para compilar_scripts_qa y compilar_scripts_pu
+        if tipo_solicitud in ['compilar_scripts_qa', 'compilar_scripts_pu']:
+            ticket_referencia = cleaned_data.get('ticket_referencia')
+            if not ticket_referencia:
+                raise forms.ValidationError(
+                    f"Para {self.get_tipo_solicitud_display(tipo_solicitud)} debe seleccionar un ticket de referencia."
+                )
+            if not lider_proyecto:
+                raise forms.ValidationError(
+                    f"Para {self.get_tipo_solicitud_display(tipo_solicitud)} debe seleccionar un líder de proyecto para aprobación."
+                )
+        
+        # Validar campos requeridos para Pull Request/Despliegue
         
         # Validar campos requeridos para Pull Request/Despliegue
         if tipo_solicitud in ['pull_request', 'despliegue']:
@@ -255,7 +283,7 @@ class EditarSolicitudForm(forms.ModelForm):
         label="Ambientes de Ejecución",
         help_text="Selecciona los ambientes donde se debe ejecutar (solo para compilación de scripts)"
     )
-    
+
     lider_proyecto = forms.ModelChoiceField(
         queryset=User.objects.filter(profile__role__in=['lider', 'admin']),
         required=False,
@@ -265,12 +293,23 @@ class EditarSolicitudForm(forms.ModelForm):
         help_text="Requerido para creación de usuarios y asignación de permisos"
     )
     
+    # Campo para compilación de scripts QA/PU
+    ticket_referencia = forms.ModelChoiceField(
+        queryset=Solicitud.objects.none(),
+        required=False,
+        empty_label="Seleccionar ticket de referencia...",
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        label="Ticket de Referencia (Desarrollo)",
+        help_text="Solicitud original en desarrollo que contiene los scripts a compilar"
+    )
+    
     class Meta:
         model = Solicitud
         fields = [
             'proyecto', 'tipo_solicitud', 'base_datos_aplicacion', 'correo_notificacion',
             'tipo_archivo', 'archivo_adjunto', 'descripcion', 
-            'url_commit', 'nombre_branch', 'entorno', 'ambientes_ejecucion', 'lider_proyecto'
+            'url_commit', 'nombre_branch', 'entorno', 'ambientes_ejecucion', 'lider_proyecto',
+            'ticket_referencia'
         ]
         widgets = {
             'descripcion': forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}),

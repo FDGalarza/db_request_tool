@@ -223,6 +223,12 @@ class Solicitud(models.Model):
     usuario_creado = models.CharField(max_length=100, blank=True, null=True)
     password_generado = models.CharField(max_length=100, blank=True, null=True)
     
+    #Campo para compilación de scripts QA/PU - referencia al ticket original
+    ticket_referencia = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True,
+                                          related_name='compilaciones_derivadas',
+                                          verbose_name="Ticket de Referencia",
+                                          help_text="Solicitud original en desarrollo de la cual se compilan los scripts")
+    
     def save(self, *args, **kwargs):
         # Auto-asignar líder de proyecto si no está asignado
         if not self.lider_proyecto and self.proyecto and self.proyecto.lider_proyecto:
@@ -364,13 +370,29 @@ class Solicitud(models.Model):
 
     def requiere_aprobacion_lider(self):
         """Verifica si la solicitud requiere aprobación de líder"""
-        return self.tipo_solicitud == 'crear_usuarios'
+        return self.tipo_solicitud in ['crear_usuarios', 'compilar_scripts_qa', 'compilar_scripts_pu']
+    
+    def get_ambiente_compilacion(self):
+        """Retorna el ambiente de compilación según el tipo de solicitud"""
+        if self.tipo_solicitud == 'compilar_scripts_qa':
+            return 'QA'
+        elif self.tipo_solicitud == 'compilar_scripts_pu':
+            return 'Producción (PU)'
+        return None
     
     def get_ambientes_display(self):
         """Retorna los ambientes de ejecución como texto"""
         if not self.ambientes_ejecucion:
             return "No especificado"
         return ", ".join(self.ambientes_ejecucion)
+
+    def get_ambiente_compilacion(self):
+        """Retorna el ambiente de compilación según el tipo de solicitud"""
+        if self.tipo_solicitud == 'compilar_scripts_qa':
+            return 'QA'
+        elif self.tipo_solicitud == 'compilar_scripts_pu':
+            return 'Producción (PU)'
+        return None
     
     class Meta:
         ordering = ['-fecha_creacion']

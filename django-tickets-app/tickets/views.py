@@ -127,9 +127,15 @@ def crear_solicitud(request):
             solicitud = form.save(commit=False)
             solicitud.usuario = request.user
             
-            # Convertir ambientes_ejecucion a lista
+                        # Convertir ambientes_ejecucion a lista
             ambientes = form.cleaned_data.get('ambientes_ejecucion', [])
             solicitud.ambientes_ejecucion = list(ambientes) if ambientes else []
+            
+            # Guardar ticket de referencia para compilar_scripts_qa/pu
+            if solicitud.tipo_solicitud in ['compilar_scripts_qa', 'compilar_scripts_pu']:
+                ticket_referencia = form.cleaned_data.get('ticket_referencia')
+                if ticket_referencia:
+                    solicitud.ticket_referencia = ticket_referencia
             
             # Si requiere aprobación de líder, cambiar estado
             if solicitud.requiere_aprobacion_lider():

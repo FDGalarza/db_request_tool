@@ -134,7 +134,7 @@
                         {{ form.proyecto }}
                         {{ form.proyecto.errors }}
                     </div>
-                    <!-- Campo para líder de proyecto (creación de usuarios) -->
+                                        <!-- Campo para líder de proyecto (creación de usuarios) -->
                     <div id="lider-section" style="display: none;">
                         <div class="mb-3">
                             <label for="{{ form.lider_proyecto.id_for_label }}" class="form-label">Líder de Proyecto *</label>
@@ -143,6 +143,27 @@
                                 <div class="text-danger">{{ form.lider_proyecto.errors }}</div>
                             {% endif %}
                             <div class="form-text">El líder debe aprobar la creación de usuarios</div>
+                        </div>
+                    </div>
+
+                    <!-- Campo para ticket de referencia (compilar_scripts_qa/pu) -->
+                    <div id="ticket-referencia-section" style="display: none;">
+                        <div class="mb-3">
+                            <label for="{{ form.ticket_referencia.id_for_label }}" class="form-label">Ticket de Referencia (Desarrollo) *</label>
+                            {{ form.ticket_referencia }}
+                            {% if form.ticket_referencia.errors %}
+                                <div class="text-danger">{{ form.ticket_referencia.errors }}</div>
+                            {% endif %}
+                            <div class="form-text">
+                                <small class="text-info">
+                                    <i class="fas fa-info-circle"></i> 
+                                    Seleccione la solicitud original en desarrollo que contiene los scripts a compilar.
+                                </small>
+                            </div>
+                        </div>
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <strong>Importante:</strong> Esta solicitud requiere aprobación del líder de proyecto antes de ser procesada.
                         </div>
                     </div>
 
@@ -173,6 +194,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function toggleSections() {
         const tipoSeleccionado = tipoSolicitudSelect.value;
+        const ticketReferenciaSection = document.getElementById('ticket-referencia-section');
         
         // Ocultar todas las secciones primero
         archivoSection.style.display = 'none';
@@ -180,13 +202,14 @@ document.addEventListener('DOMContentLoaded', function() {
         gitSection.style.display = 'none';
         scriptsSection.style.display = 'none';
         liderSection.style.display = 'none';
+        if (ticketReferenciaSection) ticketReferenciaSection.style.display = 'none';
         
         if (tipoSeleccionado === 'pull_request' || tipoSeleccionado === 'despliegue') {
             gitSection.style.display = 'block';
         } else if (tipoSeleccionado === 'compilar_scripts_qa' || tipoSeleccionado === 'compilar_scripts_pu') {
-            archivoSection.style.display = 'block';
-            archivoUpload.style.display = 'block';
-            scriptsSection.style.display = 'block';
+            // Compilar scripts QA/PU: ticket referencia + lider, SIN archivo
+            if (ticketReferenciaSection) ticketReferenciaSection.style.display = 'block';
+            liderSection.style.display = 'block';
         } else if (tipoSeleccionado === 'crear_usuarios' || tipoSeleccionado === 'asignar_permisos') {
             archivoSection.style.display = 'block';
             archivoUpload.style.display = 'block';
@@ -196,7 +219,6 @@ document.addEventListener('DOMContentLoaded', function() {
             archivoUpload.style.display = 'block';
         }
     }
-    
     tipoSolicitudSelect.addEventListener('change', toggleSections);
     toggleSections(); // Ejecutar al cargar la página
 });
